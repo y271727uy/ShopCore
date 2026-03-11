@@ -1,0 +1,36 @@
+package com.y271727uy.shopcore.api.economic;
+
+import com.y271727uy.shopcore.economic.CheckoutInput;
+import com.y271727uy.shopcore.economic.CheckoutResult;
+import com.y271727uy.shopcore.economic.CurrencyStackFactory;
+import com.y271727uy.shopcore.economic.CustomerCheckout;
+import com.y271727uy.shopcore.economic.DefaultCurrencyStackFactory;
+import com.y271727uy.shopcore.economic.Price;
+
+/**
+ * Public API entrypoint for checkout settlement.
+ */
+public final class ShopcoreCheckout {
+    private ShopcoreCheckout() {
+    }
+
+    public static CheckoutResult checkout(CheckoutInput input) {
+        return CustomerCheckout.checkout(input, DefaultCurrencyStackFactory.INSTANCE);
+    }
+
+    public static CheckoutResult checkout(CheckoutInput input, CurrencyStackFactory stackFactory) {
+        return CustomerCheckout.checkout(input, stackFactory);
+    }
+
+    public static CheckoutResult checkout(Price summarizedPrice, int quantity, double multiplier) {
+        return checkout(new CheckoutInput(
+                summarizedPrice.basicPrice(),
+                summarizedPrice.addPrice(),
+                summarizedPrice.reputation(),
+                quantity,
+                multiplier
+        ));
+    }
+}
+
+
