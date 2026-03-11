@@ -3,6 +3,7 @@ plugins {
     id 'java-library'
     id 'maven-publish'
     id 'net.neoforged.moddev.legacyforge' version '2.0.91'
+    id 'io.freefair.lombok' version "9.1.0"
 }
 
 tasks.named('wrapper', Wrapper).configure {
@@ -19,6 +20,54 @@ group = mod_group_id
 
 repositories {
     mavenLocal()
+    maven { // JEI
+        name = "Jared's Maven"
+        url = "https://maven.blamejared.com/"
+    }
+    maven { // JEI mirror, AE2
+        name = "ModMaven"
+        url = "https://modmaven.dev"
+    }
+    maven {
+        url "https://maven.latvian.dev/releases"
+        content {
+            includeGroup "dev.latvian.mods"
+            includeGroup "dev.latvian.apps"
+        }
+    }
+
+    maven {
+        url "https://jitpack.io"
+        content {
+            includeGroup "com.github.rtyley"
+        }
+    }
+    exclusiveContent { // tterrag - registrate
+        forRepository { maven { url = "https://maven.tterrag.com/" } }
+        filter { includeGroup("com.tterrag.registrate") }
+    }
+    exclusiveContent {
+        forRepository {
+            maven {
+                name = "Modrinth"
+                url = "https://api.modrinth.com/maven"
+            }
+        }
+        filter {
+            includeGroup "maven.modrinth"
+        }
+    }
+    exclusiveContent {
+        forRepository {
+            maven {
+                url "https://cursemaven.com"
+            }
+        }
+        filter {
+            includeGroup "curse.maven"
+        }
+    }
+    maven { url "https://maven.architectury.dev/" }
 }
 
 base {
@@ -67,7 +116,7 @@ legacyForge {
         data {
             data()
 
-            // example of overriding the workingDirectory set in configureEach above, uncomment if you want to use it
+            // y271727uy of overriding the workingDirectory set in configureEach above, uncomment if you want to use it
             // gameDirectory = project.file('run-data')
 
             // Specify the modid for data generation, where to output the resulting resource, and where to look for existing resources.
@@ -116,49 +165,51 @@ obfuscation {
 }
 
 dependencies {
-    // If you wish to declare dependencies against mods, make sure to use the 'mod*' configurations so that they're remapped.
-	// See https://github.com/neoforged/ModDevGradle/blob/main/LEGACY.md#remapping-mod-dependencies for more information.
-	
-    // Example optional mod dependency with JEI
-    // The JEI API is declared for compile time use, while the full JEI artifact is used at runtime
-    // modCompileOnly "mezz.jei:jei-${mc_version}-common-api:${jei_version}"
-    // modCompileOnly "mezz.jei:jei-${mc_version}-neoforge-api:${jei_version}"
-    // We add the full version to localRuntime, not runtimeOnly, so that we do not publish a dependency on it
-    // modLocalRuntime "mezz.jei:jei-${mc_version}-neoforge:${jei_version}"
+    // The project originally referenced these via the version catalog (libs).
+    // They are commented out to avoid build failure until correct coordinates/versions
+    // are provided in gradle/libs.versions.toml or replaced with explicit coordinates.
+    // TODO: restore once the correct artifact coordinates and versions are known.
+    // jarJar(modApi(libs.registrate.get()))
+    // modImplementation(libs.bundles.jei)
 
-    // Example mod dependency using a mod jar from ./libs with a flat dir repository
-    // This maps to ./libs/coolmod-${mc_version}-${coolmod_version}.jar
-    // The group id is ignored when searching -- in this case, it is "blank"
-    // modImplementation "blank:coolmod-${mc_version}:${coolmod_version}"
+    modImplementation("maven.modrinth:farmers-delight:1.20.1-1.2.7")
+    modImplementation("dev.latvian.mods:rhino-forge:2001.2.3-build.10")
+    modImplementation("dev.latvian.mods:kubejs-forge:2001.6.5-build.20")
+    modImplementation("dev.architectury:architectury-forge:9.2.14")
+    modImplementation("maven.modrinth:jade:11.13.2+forge")
+    modImplementation("maven.modrinth:some-assembly-required:FfaVwI1D")
+    modImplementation("maven.modrinth:avaritianeo:q9LjH7fG")
+    modImplementation("maven.modrinth:list-core:vkCMokbn")
+    modImplementation("maven.modrinth:touhou-little-maid:tuOQjuRE")
 
-    // Example mod dependency using a file as dependency
-    // modImplementation files("libs/coolmod-${mc_version}-${coolmod_version}.jar")
+    modImplementation("maven.modrinth:sdm-shop:vHjGpgIr")
+    modImplementation("maven.modrinth:sdm-ui-lib:SqwJk0Bv")
+    modImplementation("curse.maven:ftb-library-forge-404465:7296748")
+    modImplementation("curse.maven:sdm-economy-1102542:6145324")
+    modImplementation("maven.modrinth:easy-npc:AE2B5XuV")
 
-    // Example project dependency using a sister or child project:
-    // modImplementation project(":myproject")
+    modRuntimeOnly("maven.modrinth:probejs:7.0.0")
 
-    // For more info:
-    // http://www.gradle.org/docs/current/userguide/artifact_dependencies_tutorial.html
-    // http://www.gradle.org/docs/current/userguide/dependency_management.html
+
 }
 
 // Uncomment the lines below if you wish to configure mixin. The mixin file should be named modid.mixins.json.
-/*
-mixin {
-    add sourceSets.main, "${mod_id}.refmap.json"
-    config "${mod_id}.mixins.json"
-}
+// mixin {
+//     add sourceSets.main, "${mod_id}.refmap.json"
+//     config "${mod_id}.mixins.json"
+// }
 
 dependencies {
-    annotationProcessor 'org.spongepowered:mixin:0.8.5:processor'
+    // 移除Mixin注解处理器依赖
+    // annotationProcessor 'org.spongepowered:mixin:0.8.5:processor'
 }
 
 jar {
-    manifest.attributes([
-            "MixinConfigs": "${mod_id}.mixins.json"
-    ])
+    // 移除Mixin配置
+    // manifest.attributes([
+    //         "MixinConfigs": "${mod_id}.mixins.json"
+    // ])
 }
-*/
 
 // This block of code expands all declared replace properties in the specified resource targets.
 // A missing property will result in an error. Properties are expanded using ${} Groovy notation.
