@@ -31,6 +31,14 @@ public final class ShopcoreCheckout {
                 multiplier
         ));
     }
+
+    public static double checkoutReputation(CheckoutInput input) {
+        return ShopcoreReputation.calculateCheckoutReputation(input);
+    }
+
+    public static double checkoutReputation(Price summarizedPrice, int quantity, double multiplier) {
+        return ShopcoreReputation.calculateCheckoutReputation(summarizedPrice, quantity, multiplier);
+    }
 }
 
 

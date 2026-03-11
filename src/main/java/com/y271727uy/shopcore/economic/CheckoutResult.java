@@ -17,5 +17,21 @@ public record CheckoutResult(List<ItemStack> currency, List<CurrencyPayout> payo
         currency = List.copyOf(currency);
         payouts = List.copyOf(payouts);
     }
+
+    public List<ItemStack> currencyReward() {
+        return currency;
+    }
+
+    public double reputationReward() {
+        return reputation;
+    }
+
+    public boolean hasCurrencyReward() {
+        return !currency.isEmpty();
+    }
+
+    public boolean hasReputationReward() {
+        return reputation > 0;
+    }
 }
 
