@@ -7,9 +7,7 @@ import com.y271727uy.shopcore.economic.CustomerCheckout;
 import com.y271727uy.shopcore.economic.DefaultCurrencyStackFactory;
 import com.y271727uy.shopcore.economic.Price;
 
-/**
- * Public API entrypoint for checkout settlement.
- */
+
 public final class ShopcoreCheckout {
     private ShopcoreCheckout() {
     }

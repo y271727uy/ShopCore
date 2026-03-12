@@ -7,10 +7,6 @@ import net.minecraft.world.item.ItemStack;
 import java.util.List;
 import java.util.Objects;
 
-/**
- * Public API for reputation calculation.
- * Reputation always originates from {@link Price} data and is combined through addition.
- */
 public final class ShopcoreReputation {
     private ShopcoreReputation() {
     }

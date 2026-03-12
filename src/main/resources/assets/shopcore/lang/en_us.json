@@ -1,5 +1,6 @@
 {
   "tooltip.shopcore.price.header": "Selling Price",
+  "tooltip.shopcore.price.header.logs": "Lumber Selling Price",
   "tooltip.shopcore.price.basic": "Basic Price: %s",
   "tooltip.shopcore.price.add": "Additional Price: %s",
   "tooltip.shopcore.price.reputation": "Reputation: %s"

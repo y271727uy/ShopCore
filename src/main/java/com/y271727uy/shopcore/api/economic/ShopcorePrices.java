@@ -4,9 +4,6 @@ import com.y271727uy.shopcore.economic.Price;
 import com.y271727uy.shopcore.economic.PriceRegistry;
 import net.minecraft.world.item.ItemStack;
 
-/**
- * Public static access point used by other modules.
- */
 public final class ShopcorePrices {
 	public static final PriceProvider PROVIDER = PriceRegistry::getPrice;
 

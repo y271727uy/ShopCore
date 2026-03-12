@@ -22,7 +22,9 @@ public final class PriceTooltipHandler {
 			return;
 		}
 
-		event.getToolTip().add(Component.translatable("tooltip.shopcore.price.header")
+		String headerKey = TooltipTitleRegistry.resolveTitleKey(event.getItemStack());
+
+		event.getToolTip().add(Component.translatable(headerKey)
 				.withStyle(ChatFormatting.GREEN));
 		event.getToolTip().add(Component.translatable("tooltip.shopcore.price.basic", price.basicPrice())
 				.withStyle(ChatFormatting.GOLD));

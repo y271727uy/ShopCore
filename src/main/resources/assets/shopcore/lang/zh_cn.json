@@ -1,5 +1,6 @@
 {
   "tooltip.shopcore.price.header": "经营售价",
+  "tooltip.shopcore.price.header.logs": "木材经营售价",
   "tooltip.shopcore.price.basic": "基础价格：%s",
   "tooltip.shopcore.price.add": "附加价格：%s",
   "tooltip.shopcore.price.reputation": "声望：%s"
