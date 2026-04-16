@@ -3,6 +3,8 @@
   "tooltip.shopcore.price.header.logs": "木材经营售价",
   "tooltip.shopcore.price.basic": "基础价格：%s",
   "tooltip.shopcore.price.add": "附加价格：%s",
-  "tooltip.shopcore.price.reputation": "声望：%s"
+  "tooltip.shopcore.price.reputation": "声望：%s",
+  "item.shopcore.bank_card": "HSBCMC 银行卡",
+  "item.shopcore.premium_bank_card": "HSBCMC Premium银行卡"
 }
 

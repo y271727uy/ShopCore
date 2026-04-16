@@ -1,6 +1,7 @@
 package com.y271727uy.shopcore;
 
 import com.mojang.logging.LogUtils;
+import com.y271727uy.shopcore.all.ModItem;
 import com.y271727uy.shopcore.economic.ShopcoreEconomicBootstrap;
 import com.y271727uy.shopcore.shop_menu.MenuCreate;
 import net.minecraftforge.common.MinecraftForge;
@@ -8,6 +9,7 @@ import net.minecraftforge.event.server.ServerStartingEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.common.Mod.EventBusSubscriber;
+import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
 import net.minecraftforge.fml.event.lifecycle.FMLCommonSetupEvent;
 import net.minecraftforge.fml.event.lifecycle.FMLConstructModEvent;
 import org.slf4j.Logger;
@@ -18,6 +20,7 @@ public class ShopcoreMod {
     private static final Logger LOGGER = LogUtils.getLogger();
 
     public ShopcoreMod() {
+        ModItem.register(FMLJavaModLoadingContext.get().getModEventBus());
         MinecraftForge.EVENT_BUS.register(this);
     }
 
