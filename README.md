@@ -27,3 +27,17 @@ Additional Resources:
 ==========
 Community Documentation: https://docs.neoforged.net/  
 NeoForged Discord: https://discord.neoforged.net/
+
+SDM Economy Currency API
+==========
+ShopCore now exposes a thin adapter around `net.sixik.sdm_economy.api.CurrencyHelper`.
+
+Use `com.y271727uy.shopcore.api.economic.ShopcoreCurrency` for common actions:
+
+- `ShopcoreCurrency.increase(player, amount)` to add currency
+- `ShopcoreCurrency.decrease(player, amount)` to subtract currency
+- `ShopcoreCurrency.adjust(player, delta)` for signed changes
+- `ShopcoreCurrency.balance(player)` to query the current balance when supported
+
+The adapter resolves the helper methods reflectively so it can tolerate small API differences between SDM Economy releases.
+
