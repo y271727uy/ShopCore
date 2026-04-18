@@ -4,6 +4,8 @@
   "tooltip.shopcore.price.basic": "Basic Price: %s",
   "tooltip.shopcore.price.add": "Additional Price: %s",
   "tooltip.shopcore.price.reputation": "Reputation: %s",
+  "block.shopcore.selling_bin": "Selling Bin",
+  "container.shopcore.selling_bin": "Selling Bin",
   "item.shopcore.bank_card": "HSBCMC Card",
   "item.shopcore.premium_bank_card": "HSBCMC Premium Card"
 }

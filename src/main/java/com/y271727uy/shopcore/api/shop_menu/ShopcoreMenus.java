@@ -1,8 +1,8 @@
 package com.y271727uy.shopcore.api.shop_menu;
 
-import com.y271727uy.shopcore.shop_menu.MenuBinding;
-import com.y271727uy.shopcore.shop_menu.MenuCreate;
-import com.y271727uy.shopcore.shop_menu.MenuDefinition;
+import com.y271727uy.shopcore.economic.shop_menu.MenuBinding;
+import com.y271727uy.shopcore.economic.shop_menu.MenuCreate;
+import com.y271727uy.shopcore.economic.shop_menu.MenuDefinition;
 import net.minecraft.world.item.ItemStack;
 
 import java.util.List;

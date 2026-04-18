@@ -1,7 +1,7 @@
 package com.y271727uy.shopcore.api.economic;
 
 import com.y271727uy.shopcore.economic.CurrencyOperationResult;
-import com.y271727uy.shopcore.sdm_integration.SdmCurrencyHelperBridge;
+import com.y271727uy.shopcore.integration.sdm_integration.SdmCurrencyHelperBridge;
 import net.minecraft.world.entity.player.Player;
 
 import java.util.OptionalDouble;

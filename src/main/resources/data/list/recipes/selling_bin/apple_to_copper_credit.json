@@ -1,0 +1,13 @@
+{
+  "type": "shopcore:selling_bin",
+  "input": {
+    "item": "minecraft:apple"
+  },
+  "output": {
+    "item": "list:copper_gt_credit"
+  },
+  "base": 2,
+  "max": 4,
+  "group": "fruit"
+}
+

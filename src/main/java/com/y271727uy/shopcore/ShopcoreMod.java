@@ -1,17 +1,22 @@
 package com.y271727uy.shopcore;
 
 import com.mojang.logging.LogUtils;
+import com.y271727uy.shopcore.all.ModBlock;
+import com.y271727uy.shopcore.all.ModBlockEntities;
 import com.y271727uy.shopcore.all.ModItem;
+import com.y271727uy.shopcore.all.ModMenus;
+import com.y271727uy.shopcore.all.ModRecipes;
 import com.y271727uy.shopcore.economic.ShopcoreEconomicBootstrap;
-import com.y271727uy.shopcore.shop_menu.MenuCreate;
+import com.y271727uy.shopcore.network.ModMessages;
+import com.y271727uy.shopcore.economic.shop_menu.MenuCreate;
 import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.event.server.ServerStartingEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
-import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.common.Mod.EventBusSubscriber;
-import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
+import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.event.lifecycle.FMLCommonSetupEvent;
 import net.minecraftforge.fml.event.lifecycle.FMLConstructModEvent;
+import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
 import org.slf4j.Logger;
 
 @Mod(ShopcoreMod.MODID)
@@ -20,7 +25,13 @@ public class ShopcoreMod {
     private static final Logger LOGGER = LogUtils.getLogger();
 
     public ShopcoreMod() {
-        ModItem.register(FMLJavaModLoadingContext.get().getModEventBus());
+        var modEventBus = FMLJavaModLoadingContext.get().getModEventBus();
+        ModBlock.BLOCKS.register(modEventBus);
+        ModBlockEntities.register(modEventBus);
+        ModItem.register(modEventBus);
+        ModMenus.register(modEventBus);
+        ModRecipes.register(modEventBus);
+        ModMessages.register();
         MinecraftForge.EVENT_BUS.register(this);
     }
 
