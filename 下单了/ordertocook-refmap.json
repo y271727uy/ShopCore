@@ -1,0 +1,30 @@
+{
+  "mappings": {
+    "cn/breezeth/ordertocook/mixin/ItemEntityMixin": {
+      "onPlayerCollision": "Lnet/minecraft/class_1542;method_5694(Lnet/minecraft/class_1657;)V"
+    },
+    "cn/breezeth/ordertocook/mixin/MotorcycleFallDamageMixin": {
+      "damage": "Lnet/minecraft/class_1657;method_5643(Lnet/minecraft/class_1282;F)Z",
+      "handleFallDamage": "Lnet/minecraft/class_1657;method_5747(FFLnet/minecraft/class_1282;)Z"
+    },
+    "cn/breezeth/ordertocook/mixin/PlayerEntityMixin": {
+      "readCustomDataFromNbt": "Lnet/minecraft/class_3222;method_5749(Lnet/minecraft/class_2487;)V",
+      "writeCustomDataToNbt": "Lnet/minecraft/class_3222;method_5652(Lnet/minecraft/class_2487;)V"
+    }
+  },
+  "data": {
+    "named:intermediary": {
+      "cn/breezeth/ordertocook/mixin/ItemEntityMixin": {
+        "onPlayerCollision": "Lnet/minecraft/class_1542;method_5694(Lnet/minecraft/class_1657;)V"
+      },
+      "cn/breezeth/ordertocook/mixin/MotorcycleFallDamageMixin": {
+        "damage": "Lnet/minecraft/class_1657;method_5643(Lnet/minecraft/class_1282;F)Z",
+        "handleFallDamage": "Lnet/minecraft/class_1657;method_5747(FFLnet/minecraft/class_1282;)Z"
+      },
+      "cn/breezeth/ordertocook/mixin/PlayerEntityMixin": {
+        "readCustomDataFromNbt": "Lnet/minecraft/class_3222;method_5749(Lnet/minecraft/class_2487;)V",
+        "writeCustomDataToNbt": "Lnet/minecraft/class_3222;method_5652(Lnet/minecraft/class_2487;)V"
+      }
+    }
+  }
+}

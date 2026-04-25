@@ -20,6 +20,9 @@ public final class SellingBinGroupManager {
     private static final int DAILY_DECREASE_AMOUNT_MAX = 3;
     private static final float FIRST_CARRY_CHANCE = 0.25F;
     private static final float SECOND_CARRY_CHANCE = 0.10F;
+    private static final Object GROUP_CACHE_LOCK = new Object();
+
+    private static Map<String, SellingBinGroup> cachedGroups;
 
     private SellingBinGroupManager() {
     }
@@ -30,6 +33,12 @@ public final class SellingBinGroupManager {
 
     public static Map<ResourceLocation, Integer> snapshotPriceBonuses(ServerLevel level) {
         return SellingBinMarketSavedData.get(level).snapshotPriceBonuses();
+    }
+
+    public static void invalidateCachedGroups() {
+        synchronized (GROUP_CACHE_LOCK) {
+            cachedGroups = null;
+        }
     }
 
     public static boolean refreshForElapsedDays(ServerLevel level) {
@@ -62,6 +71,15 @@ public final class SellingBinGroupManager {
     }
 
     public static Map<String, SellingBinGroup> collectGroups(ServerLevel level) {
+        synchronized (GROUP_CACHE_LOCK) {
+            if (cachedGroups == null) {
+                cachedGroups = buildGroups(level);
+            }
+            return Collections.unmodifiableMap(cachedGroups);
+        }
+    }
+
+    private static Map<String, SellingBinGroup> buildGroups(ServerLevel level) {
         Map<String, SellingBinGroup> groups = new LinkedHashMap<>();
 
         for (SellingBinRecipe recipe : level.getRecipeManager().getAllRecipesFor(ModRecipes.SELLING_BIN_RECIPE_TYPE.get())) {
@@ -84,7 +102,7 @@ public final class SellingBinGroupManager {
             Map<ResourceLocation, Integer> previousBonuses,
             Map<ResourceLocation, Integer> previousCarryStages
     ) {
-        ArrayList<SellingBinRecipe> remainingRecipes = new ArrayList<>(group.getRecipes());
+        List<SellingBinRecipe> remainingRecipes = group.getRecipes();
         if (remainingRecipes.isEmpty()) {
             return false;
         }
@@ -137,14 +155,14 @@ public final class SellingBinGroupManager {
         for (int i = 0; i < increaseCount; i++) {
             SellingBinRecipe recipe = remainingRecipes.remove(remainingRecipes.size() - 1);
             int amount = getRandomInRange(level.random, DAILY_INCREASE_AMOUNT_MIN, DAILY_INCREASE_AMOUNT_MAX);
-            changed |= applyPriceDelta(marketData, recipe, amount, 0);
+            changed |= applyPriceDelta(marketData, recipe, amount);
         }
 
         int decreaseBudget = Math.min(requestedFreshDecreaseCount, remainingRecipes.size());
         for (int i = remainingRecipes.size() - 1; i >= 0 && decreaseBudget > 0; i--) {
             SellingBinRecipe recipe = remainingRecipes.get(i);
             int amount = getRandomInRange(level.random, DAILY_DECREASE_AMOUNT_MIN, DAILY_DECREASE_AMOUNT_MAX);
-            if (applyPriceDelta(marketData, recipe, -amount, 0)) {
+            if (applyPriceDelta(marketData, recipe, -amount)) {
                 changed = true;
                 decreaseBudget--;
             }
@@ -169,7 +187,7 @@ public final class SellingBinGroupManager {
         return changed;
     }
 
-    private static boolean applyPriceDelta(SellingBinMarketSavedData marketData, SellingBinRecipe recipe, int delta, int carryStage) {
+    private static boolean applyPriceDelta(SellingBinMarketSavedData marketData, SellingBinRecipe recipe, int delta) {
         if (delta == 0) {
             return false;
         }
@@ -186,10 +204,10 @@ public final class SellingBinGroupManager {
 
         long nextBonus = (long) currentBonus + delta;
         if (nextBonus >= Integer.MAX_VALUE) {
-            return applyActivePrice(marketData, recipeId, Integer.MAX_VALUE, carryStage);
+            return applyActivePrice(marketData, recipeId, Integer.MAX_VALUE, 0);
         }
 
-        return applyActivePrice(marketData, recipeId, (int) nextBonus, carryStage);
+        return applyActivePrice(marketData, recipeId, (int) nextBonus, 0);
     }
 
     private static Integer getLegalDecreaseDelta(SellingBinRecipe recipe, int currentBonus, int requestedDelta) {

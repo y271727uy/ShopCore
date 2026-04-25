@@ -19,6 +19,7 @@ import net.minecraftforge.fml.event.lifecycle.FMLConstructModEvent;
 import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
 import org.slf4j.Logger;
 
+@SuppressWarnings("removal")
 @Mod(ShopcoreMod.MODID)
 public class ShopcoreMod {
     public static final String MODID = "shopcore";

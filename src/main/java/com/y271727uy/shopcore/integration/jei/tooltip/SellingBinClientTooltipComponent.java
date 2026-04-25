@@ -30,13 +30,7 @@ public class SellingBinClientTooltipComponent implements ClientTooltipComponent 
     public SellingBinClientTooltipComponent(SellingBinTooltipComponent component) {
         this.output = component.output().copy();
         this.outputPriceText = component.outputPriceText();
-
-        ItemStack[] items = component.input().getItems();
-        if (items.length > 0) {
-            this.inputPreview = items[0].copy();
-        } else {
-            this.inputPreview = ItemStack.EMPTY;
-        }
+        this.inputPreview = component.inputPreview().copy();
     }
 
     @Override

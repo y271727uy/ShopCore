@@ -70,6 +70,7 @@ public class SellingBinBlock extends BaseEntityBlock {
 
         BlockEntity be = level.getBlockEntity(pos);
         if (player instanceof net.minecraft.server.level.ServerPlayer serverPlayer && be instanceof SellingBinBlockEntity sellingBin) {
+            sellingBin.setLidTargetOpen(true);
             ModMenus.open(serverPlayer, sellingBin, pos);
             return InteractionResult.CONSUME;
         }
@@ -80,20 +81,17 @@ public class SellingBinBlock extends BaseEntityBlock {
     @Nullable
     @Override
     public <T extends BlockEntity> BlockEntityTicker<T> getTicker(Level level, BlockState state, BlockEntityType<T> blockEntityType) {
-        if (level.isClientSide) {
-            return null;
-        }
         return createTickerHelper(
             blockEntityType,
             ModBlockEntities.SELLING_BIN.get(),
-            (l, p, s, be) -> ((SellingBinBlockEntity) be).tick(l, p, s)
+            (l, p, s, be) -> be.tick(l, p, s)
         );
     }
 
     @SuppressWarnings("deprecation")
     @Override
     public RenderShape getRenderShape(BlockState state) {
-        return RenderShape.MODEL;
+        return RenderShape.ENTITYBLOCK_ANIMATED;
     }
 }
 

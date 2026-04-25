@@ -11,6 +11,7 @@ import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.util.GsonHelper;
+import net.minecraft.util.RandomSource;
 import net.minecraft.world.Container;
 import net.minecraft.world.ContainerHelper;
 import net.minecraft.world.entity.player.Player;
@@ -32,6 +33,7 @@ public class SellingBinRecipe implements Recipe<SellingBinRecipe.RecipeInput> {
 
     public final ResourceLocation id;
     public final Ingredient input;
+    private final ItemStack[] inputChoices;
     /**
      * Prototype output stack (includes NBT if provided in JSON).
      * The runtime output count is computed from base/max (if present) and then applied to a copy.
@@ -52,6 +54,7 @@ public class SellingBinRecipe implements Recipe<SellingBinRecipe.RecipeInput> {
     public SellingBinRecipe(ResourceLocation id, Ingredient input, ItemStack output, @Nullable Integer base, @Nullable Integer max, String group) {
         this.id = id;
         this.input = input;
+        this.inputChoices = input.getItems();
         this.output = output;
         this.base = base;
         this.max = max;
@@ -61,6 +64,31 @@ public class SellingBinRecipe implements Recipe<SellingBinRecipe.RecipeInput> {
     @Override
     public String getGroup() {
         return group;
+    }
+
+    public boolean isMultiChoiceInput() {
+        return inputChoices.length > 1;
+    }
+
+    public ItemStack[] getInputChoices() {
+        return inputChoices;
+    }
+
+    public ItemStack getPrimaryInputPreview() {
+        if (inputChoices.length == 0) {
+            return ItemStack.EMPTY;
+        }
+        return inputChoices[0].copy();
+    }
+
+    public ItemStack pickRandomInputChoice(RandomSource random) {
+        if (inputChoices.length == 0) {
+            return ItemStack.EMPTY;
+        }
+        if (inputChoices.length == 1) {
+            return inputChoices[0].copy();
+        }
+        return inputChoices[random.nextInt(inputChoices.length)].copy();
     }
 
     @Override

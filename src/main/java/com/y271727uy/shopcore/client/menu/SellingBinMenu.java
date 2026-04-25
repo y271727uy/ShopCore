@@ -7,25 +7,28 @@ import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.inventory.*;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraftforge.items.SlotItemHandler;
 
+import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 public class SellingBinMenu extends AbstractContainerMenu {
-    private final Level level;
     private final SellingBinBlockEntity blockEntity;
     private final ContainerData data;
 
     public SellingBinMenu(@Nullable MenuType<?> menuType, int containerId, Inventory inventory, FriendlyByteBuf buf) {
-        this(menuType, containerId, inventory, inventory.player.level().getBlockEntity(buf.readBlockPos()), new SimpleContainerData(2));
+        this(menuType, containerId, inventory, resolveBlockEntity(inventory, buf), new SimpleContainerData(2));
+    }
+
+    private static BlockEntity resolveBlockEntity(Inventory inventory, FriendlyByteBuf buf) {
+        var level = inventory.player.level();
+        return level.getBlockEntity(buf.readBlockPos());
     }
 
     public SellingBinMenu(MenuType<?> menuType, int containerId, Inventory inventory, BlockEntity be, ContainerData data) {
         super(menuType, containerId);
         this.blockEntity = (SellingBinBlockEntity) be;
-        this.level = inventory.player.level();
         this.data = data;
 
         addPlayerInventory(inventory);
@@ -70,12 +73,9 @@ public class SellingBinMenu extends AbstractContainerMenu {
         return data.get(0);
     }
 
-    public int getIntervalTicks() {
-        return data.get(1);
-    }
-
+    @Nonnull
     @Override
-    public ItemStack quickMoveStack(Player playerIn, int index) {
+    public ItemStack quickMoveStack(@Nonnull Player playerIn, int index) {
         Slot sourceSlot = slots.get(index);
         if (!sourceSlot.hasItem()) return ItemStack.EMPTY;
 
@@ -107,8 +107,19 @@ public class SellingBinMenu extends AbstractContainerMenu {
     }
 
     @Override
-    public boolean stillValid(Player player) {
-        return stillValid(ContainerLevelAccess.create(level, blockEntity.getBlockPos()), player, ModBlock.SELLING_BIN.get());
+    public boolean stillValid(@Nonnull Player player) {
+        var level = blockEntity.getLevel();
+        return level != null && stillValid(ContainerLevelAccess.create(level, blockEntity.getBlockPos()), player, ModBlock.SELLING_BIN.get());
+    }
+
+    @Override
+    public void removed(@Nonnull Player player) {
+        super.removed(player);
+        var playerLevel = player.level();
+        var blockLevel = blockEntity.getLevel();
+        if (blockLevel != null && playerLevel == blockLevel && !blockLevel.isClientSide) {
+            blockEntity.setLidTargetOpen(false);
+        }
     }
 }
 

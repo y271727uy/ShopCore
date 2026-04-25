@@ -5,10 +5,14 @@ import com.y271727uy.shopcore.all.ModMenus;
 import com.y271727uy.shopcore.all.ModRecipes;
 import com.y271727uy.shopcore.client.menu.SellingBinMenu;
 import com.y271727uy.shopcore.recipe.SellingBinRecipe;
+import lombok.Getter;
 import net.minecraft.MethodsReturnNonnullByDefault;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.protocol.game.ClientboundBlockEntityDataPacket;
+import net.minecraft.util.Mth;
 import net.minecraft.world.MenuProvider;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
@@ -34,9 +38,13 @@ public class SellingBinBlockEntity extends BlockEntity implements MenuProvider {
 
     /** 10分钟执行一次配方（可在这里调整） */
     public static final int INTERVAL_TICKS = 10 * 60 * 20;
+    private static final float LID_ANIMATION_STEP = 0.1F;
 
     /** 倒计时：距离下次执行还剩多少 tick */
     private int ticksUntilRun = INTERVAL_TICKS;
+    private boolean lidTargetOpen = false;
+    private float lastLidOpenProgress = 0.0F;
+    private float lidOpenProgress = 0.0F;
 
     protected final ContainerData dataAccess = new ContainerData() {
         @Override
@@ -88,11 +96,27 @@ public class SellingBinBlockEntity extends BlockEntity implements MenuProvider {
     }
 
     @Override
-    public <T> LazyOptional<T> getCapability(Capability<T> cap, @Nullable net.minecraft.core.Direction side) {
+    public <T> LazyOptional<T> getCapability(Capability<T> cap, @Nullable Direction side) {
         if (cap == ForgeCapabilities.ITEM_HANDLER) {
             return handlerOptional.cast();
         }
         return super.getCapability(cap, side);
+    }
+
+    public void setLidTargetOpen(boolean open) {
+        if (this.lidTargetOpen == open) {
+            return;
+        }
+
+        this.lidTargetOpen = open;
+        syncClientState(worldPosition, getBlockState());
+    }
+
+    private void syncClientState(BlockPos pos, BlockState state) {
+        setChanged();
+        if (level != null && !level.isClientSide) {
+            level.sendBlockUpdated(pos, state, state, 3);
+        }
     }
 
     @Override
@@ -100,6 +124,34 @@ public class SellingBinBlockEntity extends BlockEntity implements MenuProvider {
         super.saveAdditional(tag);
         tag.put("Inventory", itemHandler.serializeNBT());
         tag.putInt("TicksUntilRun", ticksUntilRun);
+    }
+
+    @Override
+    public CompoundTag getUpdateTag() {
+        CompoundTag tag = super.getUpdateTag();
+        tag.putBoolean("LidTargetOpen", lidTargetOpen);
+        tag.putFloat("LidOpenProgress", lidOpenProgress);
+        tag.putFloat("LastLidOpenProgress", lastLidOpenProgress);
+        return tag;
+    }
+
+    @Nullable
+    @Override
+    public ClientboundBlockEntityDataPacket getUpdatePacket() {
+        return ClientboundBlockEntityDataPacket.create(this);
+    }
+
+    @Override
+    public void handleUpdateTag(CompoundTag tag) {
+        super.handleUpdateTag(tag);
+        this.lidTargetOpen = tag.getBoolean("LidTargetOpen");
+        this.lidOpenProgress = tag.getFloat("LidOpenProgress");
+        this.lastLidOpenProgress = tag.getFloat("LastLidOpenProgress");
+    }
+
+    @Override
+    public void onDataPacket(net.minecraft.network.Connection net, ClientboundBlockEntityDataPacket pkt) {
+        handleUpdateTag(pkt.getTag());
     }
 
     @Override
@@ -124,9 +176,19 @@ public class SellingBinBlockEntity extends BlockEntity implements MenuProvider {
         ticksUntilRun = tag.contains("TicksUntilRun") ? tag.getInt("TicksUntilRun") : INTERVAL_TICKS;
     }
 
+    @SuppressWarnings("unused")
     public void tick(Level level, BlockPos pos, BlockState state) {
-        if (level.isClientSide) return;
 
+        float targetProgress = lidTargetOpen ? 1.0F : 0.0F;
+        this.lastLidOpenProgress = lidOpenProgress;
+        if (lidOpenProgress != targetProgress) {
+            if (lidOpenProgress < targetProgress) {
+                lidOpenProgress = Math.min(targetProgress, lidOpenProgress + LID_ANIMATION_STEP);
+            } else {
+                lidOpenProgress = Math.max(targetProgress, lidOpenProgress - LID_ANIMATION_STEP);
+            }
+        }
+        if (level.isClientSide) return;
         if (ticksUntilRun-- > 0) {
             setChanged();
             return;
@@ -135,6 +197,21 @@ public class SellingBinBlockEntity extends BlockEntity implements MenuProvider {
         ticksUntilRun = INTERVAL_TICKS;
         runAllRecipes(level);
         setChanged();
+    }
+
+    public float getLidOpenProgress(float partialTick) {
+        float targetProgress = lidTargetOpen ? 1.0F : 0.0F;
+        if (lidOpenProgress == targetProgress) {
+            return targetProgress;
+        }
+        if (partialTick == 1) {
+            return lidOpenProgress;
+        }
+        float original = Mth.lerp(partialTick, lastLidOpenProgress, lidOpenProgress);
+
+        return original < 0.5f
+            ? 4 * original * original * original
+            : (float) (1 - Math.pow(-2 * original + 2, 3) / 2);
     }
 
     private void runAllRecipes(Level level) {

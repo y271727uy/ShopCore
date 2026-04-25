@@ -7,6 +7,7 @@ import com.y271727uy.shopcore.network.SellingBinPriceSyncS2CPacket;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.level.Level;
+import net.minecraftforge.event.AddReloadListenerEvent;
 import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.event.entity.player.PlayerEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
@@ -31,6 +32,11 @@ public final class SellingBinEvents {
         if (SellingBinGroupManager.refreshForElapsedDays(serverLevel)) {
             syncAllPlayers(serverLevel);
         }
+    }
+
+    @SubscribeEvent
+    public static void onAddReloadListener(AddReloadListenerEvent event) {
+        SellingBinGroupManager.invalidateCachedGroups();
     }
 
     @SubscribeEvent

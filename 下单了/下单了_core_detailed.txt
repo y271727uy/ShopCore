@@ -1,0 +1,110 @@
+下单了 (ordertocook) — 核心逻辑详细分析
+路径: ./下单了/
+版本: 1.3.1
+
+说明: 基于仓库内资源（data/、assets/）与解压后的 .class 文件（cn/breezeth/ordertocook/**）分析得出。下面按子系统逐项详述实现要点、关键数据结构、重要 NBT/tag 名、关键方法（类内可见的符号/字符串）以及流程推断。
+
+一、总体架构
+- 入口: `cn.breezeth.ordertocook.OrderToCookMod`（主），`cn.breezeth.ordertocook.client.OrderToCookModClient`（客户端）。
+- 主要包:
+  - core: 订单生成、NPC 管理、持久化状态、声望等核心逻辑（OrderGenerator、OrderNpcManager、RestaurantPersistentState、PrestigeManager、WashingTableManager 等）
+  - registry: 注册方块/物品/实体/容器/声效等
+  - entity: 顾客、载具（motorcycle）、seat 等实体实现
+  - block / item / screen: 方块/容器/界面实现
+  - network / command: 同步与命令
+  - mixin: 对原版行为的改动
+
+二、订单（Order）数据模型与 NBT / Tag
+- 订单主要以 ItemStack（或自定义 NBT）表示（OrderGenerator 中可见对 net/minecraft/class_1799 的操作，即 ItemStack）。
+- 关键 NBT / tag 前缀（来自 OrderNpcManager 与 OrderGenerator）：
+  - otc_order:           （订单主 tag 前缀）
+  - otc_order_expiry_tick:（过期 tick）
+  - otc_order_expiry_sys: （过期系统时间）
+  - otc_walkin           （到店顾客标记）
+  - otc_walkin_spawn_time / otc_walkin_spawn_sys（到店生成时间/tick）
+  - otc_walkin_machine_pos: / otc_walkin_board_pos: / otc_chair_seat_pos:（位置信息存储使用前缀）
+- 订单字段（OrderGenerator 提及的变量名，可得知数据项）:
+  - orderId, expiryTick, expirySys, delivery (boolean), isLongDistance, urgent (boolean), durationTicks, totalCoin, hunger, customer (CustomerProfile), remainTicks
+
+三、订单生成（OrderGenerator 的行为推断）
+- 主要职责: 生成到店（walk-in）或配送（delivery）订单；计算奖励（coin）、总饱食度（hunger）、是否加急、是否远距、过期时间、分配订单/顾客 id，并将订单写入 ItemStack NBT。
+- 可见方法/要点（从 .class 可读符号）:
+  - generateWalkInOrder(world, pos, level, spawnTick, customerName) -> ItemStack
+  - generateRandomOrder(world, pos, level, random?) -> ItemStack
+  - determineOrderType(… config, random) -> int (类型/颜色等级：白/绿/蓝/紫/红)
+  - generateDeliveryPosition(world, biomeSource, pos, nbt, boolean) —— 尝试生成配送目标位置，失败时回退到机器位置（日志: "Delivery position generation failed, fallback to machine pos"）
+  - calculateCoin( ... ) -> int（计算订单收益：考虑等级/急速/远距倍率/基础 coin）
+  - computeOrderHunger(item/recipe) -> int
+  - allocateOrderId() / allocateCustomerId()：使用 OtcRuntimeIdState 管理运行时 id 分配
+  - writeToNbt(itemStack, nbt) / setOrderName(itemStack, name, ...)：把订单写回 NBT
+- 生成流程（推断）：
+  1) 读取配置（ModConfig）决定概率（deliveryRate, urgentRate, longDistanceDeliveryChance 等）。
+  2) 随机决定订单稀有度/类型，基于权重数组（weightWhite/Green/Blue/Purple/Red）。
+  3) 选取菜单物品（menuFoods / food list），计算总饱食度与基础 coin。
+  4) 根据等级/效果/加急/远距等调整 coin（deliveryMultiplier、longDistanceMultiplier、urgentBonus 等）。
+  5) 分配订单 id、顾客 id，设置 expiryTick/expirySys（duration）并写入 NBT。
+
+四、NPC 管理（OrderNpcManager / OrderNpcRegistry / 各类 NPC 管理器）
+- 功能: 负责生成、标记、跟踪与消失订单 NPC（到店顾客或配送顾客），以及完成/失败时的处理与动画。
+- 重要方法/符号:
+  - spawnWalkIn(world, machinePos, level)：生成到店顾客
+  - spawnForNormal / spawnForDelivery(... customerData, expiry, orderId ...)：生成普通/配送顾客
+  - tagNpc(entity, orderId, ...)：给实体添加 otc_order 前缀 tag（用于查找/匹配）
+  - despawnEntity(world, entity, orderId, player?, DespawnReason)
+  - despawnFor / delivered(CONPLETED) —— 标记为完成并触发收益
+  - findNpcByTags(world, center, range, tagPrefix) -> entity
+  - findEmptyChair、isChairOccupied：用于到店顾客的座位查找
+  - start/finish 动画（CompletionAnimation、startSit/Stand 等）
+- 标签/查找逻辑: 通过实体上的字符串 tag 前缀（如 otc_order:...）保存 orderId 与 expiry 信息；OrderNpcManager 会遍历区块实体/玩家附近实体查找带有特定前缀的 NPC 并根据过期 / 成功等进行处理。
+
+五、配送与载具（motorcycle / cooler）
+- OrderGenerator 负责生成 delivery 目标位置并计算距离；配送奖励会根据距离应用 longDistanceMultiplier。
+- 存在保温箱/保温容器 (motorcycle 冷却箱/容器)，在资源文件和 registry 中可见 container 名称（container.ordertocook.motorcycle_cooler）。
+
+六、餐厅持久化与排行（RestaurantPersistentState / MachineRankingState）
+- RestaurantPersistentState 保存每个机器/餐厅的统计：name, owner, level, accepted, delivery, longDistance, totalProfit, deliveryProfit, maxDeliveryDist, walkIn 等字段（见类内字段名）。
+- 提供读取/写入 NBT（read/ write）、查找/移除条目（entrySet/put/remove）和整体 Map 存取接口。
+- MachineRankingState / registry 负责全局统计与排行；PrestigeManager 管理玩家或餐厅的声望并提供 add/get 方法。
+
+七、洗碗/餐盘系统（WashingTableManager）
+- 管理洗碗会话（active sessions map keyed by player UUID），有 REQUIRED_HOLD_TICKS 常量和 start/stop/completeWash/tick 方法。
+- completeWash 会处理将脏盘变为空盘、生成效果（spawnWashEffects）、播放音效等；代码中引用 ModSounds.PLATE_PLACE、ModItems.CLEAN_PLATE。
+
+八、命令与调试（command / dev）
+- 提供 `/ordertocook` 指令（subcommands: dev, neworder 等），语言文件中包含多个命令反馈信息（message.ordertocook.*）。
+- 部分类中有 dev-only 日志/分支（例如 OrderNpcManager 中的 "[OTC Dev] Check Order:" 日志格式）。
+
+九、混入与兼容性（mixin）
+- mixin 包含对 ItemEntity、PlayerEntity、MotorcycleFallDamage 等的修改（在 refmap 和 mixin json 可见），说明 mod 会修改原版实体行为以兼容订单/载具逻辑。
+
+十、数据/资源驱动点（可配置/可扩展）
+- data/ordertocook/recipe 下定义了 mod 的方块/物品/容器/实体的注册/配方（board.json, order_machine.json, motorcycle.json, washingtable.json 等）。
+- assets/ordertocook/lang/zh_cn.json 含大量用户可见文本（界面、提醒、奖励、订单类型），可以通过改语言或 data 调整玩法提示。
+
+十一、订单生命周期（综合流程）
+1) 玩家触发在打单机（Order Machine）界面选择或自动生成订单。
+2) OrderGenerator 生成 ItemStack（订单），写入 NBT（orderId、expiry、delivery、urgent、isLongDistance、menu items、totalCoin、hunger 等）。
+3) 若为到店订单：OrderNpcManager spawnWalkIn / spawnForNormal 会在附近寻址空椅子并生成 CustomerEntity，标记实体 tag（otc_order:*）。
+4) 若为配送订单：分配目标位置（generateDeliveryPosition），生成车辆/保温箱并将包裹放入容器（或生成带有标记的实体/Item）同时启动配送计时。
+5) 玩家制作食物并将包含正确 NBT 的包裹/餐盘交给顾客或放入容器，触发提交/验证逻辑（容器/交互代码在 countertop / screen / block 等类中）。
+6) 验证通过后，OrderNpcManager 处理完成逻辑：发放收益（totalCoin、可能小费）、增加餐厅/玩家统计（accepted，totalProfit，deliveryProfit 等）、触发排行/声望更新（PrestigeManager / MachineRankingState），并移除/播放完成动画。
+7) 若超时或丢失：OrderNpcManager 检测 expiryTick/expirySys 并触发 despawn/失败逻辑（deduct/mark fail、发送消息）。
+
+十二、结论与后续建议
+- 结论: mod 的核心为“打单机 => 订单生成 => NPC/配送 => 验证与收益 => 持久化统计/排行/声望”。实现包含数据驱动（recipes/lang）、运行时 id 管理（OtcRuntimeIdState）、实体标签化（otc_order:*）和本地持久化（RestaurantPersistentState）。
+- 若需要更精确的实现细节（逐行变量/分支/数学公式），建议对以下类做反编译并审阅源码：
+  - cn.breezeth.ordertocook.core.OrderGenerator
+  - cn.breezeth.ordertocook.core.OrderNpcManager
+  - cn.breezeth.ordertocook.core.RestaurantPersistentState
+  - cn.breezeth.ordertocook.core.PrestigeManager
+  - cn.breezeth.ordertocook.core.WashingTableManager
+  - cn.breezeth.ordertocook.registry.*（注册相关类）
+- 我已基于 .class 文件中可见的符号与字符串提取出上面分析；如果你愿意，我可以继续：
+  A) 对上述类进行完整反编译并把关键函数/算法源码粘贴到一个 txt（我已准备 decompile 脚本）；或
+  B) 继续在 .class 二进制中抽取更多字符串/符号并把重要常量（如权重数组、倍率表、NBT 键名）列为结构化表格（无需完整反编译）。
+
+如果你确认要我把此详细分析写入仓库根目录的文件（我已创建本文件），或需要我继续生成反编译源码，请回复：
+- "继续反编译并输出源码" 或
+- "仅继续从 .class 提取常量/字符串" 或
+- "结束：我只要这个分析"。
+

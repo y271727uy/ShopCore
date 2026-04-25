@@ -2,7 +2,6 @@ package com.y271727uy.shopcore.all;
 
 import com.y271727uy.shopcore.ShopcoreMod;
 import com.y271727uy.shopcore.item.GlowingItem;
-import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.Item;
 import net.minecraftforge.eventbus.api.IEventBus;
 import net.minecraftforge.registries.DeferredRegister;
@@ -19,7 +18,7 @@ public class ModItem {
 			.register("premium_bank_card", () -> new Item(new Item.Properties().stacksTo(1)));
 
 	public static final RegistryObject<Item> SELLING_BIN = ITEMS
-			.register("selling_bin", () -> new BlockItem(ModBlock.SELLING_BIN.get(), new Item.Properties()));
+			.register("selling_bin", () -> new com.y271727uy.shopcore.item.SellingBinBlockItem(ModBlock.SELLING_BIN.get(), new Item.Properties()));
 
 	public static final RegistryObject<Item> EQUALS = ITEMS
 			.register("equals", () -> new GlowingItem(new Item.Properties()));

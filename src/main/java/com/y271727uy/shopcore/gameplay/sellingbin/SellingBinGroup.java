@@ -12,7 +12,7 @@ public final class SellingBinGroup {
     }
 
     public void addRecipe(SellingBinRecipe recipe) {
-        for (var matchingItem : recipe.input.getItems()) {
+        for (var matchingItem : recipe.getInputChoices()) {
             if (matchingItem.isEmpty()) {
                 continue;
             }
