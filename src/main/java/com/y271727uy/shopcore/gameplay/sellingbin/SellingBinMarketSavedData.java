@@ -7,6 +7,7 @@ import net.minecraft.nbt.Tag;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.saveddata.SavedData;
+import org.jetbrains.annotations.NotNull;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -19,14 +20,15 @@ public final class SellingBinMarketSavedData extends SavedData {
     private final Map<ResourceLocation, Integer> carryStageByRecipe = new HashMap<>();
     private long lastProcessedDay = UNINITIALIZED_DAY;
 
-    public static SellingBinMarketSavedData get(ServerLevel level) {
+    @SuppressWarnings("resource")
+    static SellingBinMarketSavedData get(ServerLevel level) {
         return level.getServer()
                 .overworld()
                 .getDataStorage()
                 .computeIfAbsent(SellingBinMarketSavedData::load, SellingBinMarketSavedData::new, DATA_NAME);
     }
 
-    public static SellingBinMarketSavedData load(CompoundTag tag) {
+    static SellingBinMarketSavedData load(CompoundTag tag) {
         SellingBinMarketSavedData data = new SellingBinMarketSavedData();
         if (tag.contains("LastProcessedDay", Tag.TAG_LONG)) {
             data.lastProcessedDay = tag.getLong("LastProcessedDay");
@@ -54,26 +56,26 @@ public final class SellingBinMarketSavedData extends SavedData {
         return data;
     }
 
-    public boolean isInitialized() {
+    boolean isInitialized() {
         return lastProcessedDay != UNINITIALIZED_DAY;
     }
 
-    public long getLastProcessedDay() {
+    long getLastProcessedDay() {
         return lastProcessedDay;
     }
 
-    public void setLastProcessedDay(long dayIndex) {
+    void setLastProcessedDay(long dayIndex) {
         if (lastProcessedDay != dayIndex) {
             lastProcessedDay = dayIndex;
             setDirty();
         }
     }
 
-    public int getPriceBonus(ResourceLocation recipeId) {
+    int getPriceBonus(ResourceLocation recipeId) {
         return priceBonusByRecipe.getOrDefault(recipeId, 0);
     }
 
-    public boolean setPriceBonus(ResourceLocation recipeId, int bonus) {
+    boolean setPriceBonus(ResourceLocation recipeId, int bonus) {
         int currentBonus = getPriceBonus(recipeId);
         if (currentBonus == bonus) {
             return false;
@@ -90,11 +92,11 @@ public final class SellingBinMarketSavedData extends SavedData {
         return true;
     }
 
-    public int getCarryStage(ResourceLocation recipeId) {
+    int getCarryStage(ResourceLocation recipeId) {
         return Math.max(0, carryStageByRecipe.getOrDefault(recipeId, 0));
     }
 
-    public boolean setCarryStage(ResourceLocation recipeId, int carryStage) {
+    boolean setCarryStage(ResourceLocation recipeId, int carryStage) {
         int normalizedStage = Math.max(0, carryStage);
         if (!priceBonusByRecipe.containsKey(recipeId)) {
             normalizedStage = 0;
@@ -115,11 +117,11 @@ public final class SellingBinMarketSavedData extends SavedData {
         return true;
     }
 
-    public Map<ResourceLocation, Integer> snapshotCarryStages() {
+    Map<ResourceLocation, Integer> snapshotCarryStages() {
         return new HashMap<>(carryStageByRecipe);
     }
 
-    public boolean clearActiveAdjustments() {
+    boolean clearActiveAdjustments() {
         if (priceBonusByRecipe.isEmpty() && carryStageByRecipe.isEmpty()) {
             return false;
         }
@@ -130,12 +132,12 @@ public final class SellingBinMarketSavedData extends SavedData {
         return true;
     }
 
-    public Map<ResourceLocation, Integer> snapshotPriceBonuses() {
+    Map<ResourceLocation, Integer> snapshotPriceBonuses() {
         return new HashMap<>(priceBonusByRecipe);
     }
 
     @Override
-    public CompoundTag save(CompoundTag tag) {
+    public @NotNull CompoundTag save(CompoundTag tag) {
         tag.putLong("LastProcessedDay", lastProcessedDay);
 
         ListTag bonuses = new ListTag();

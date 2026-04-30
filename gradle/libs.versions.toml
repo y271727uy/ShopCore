@@ -4,14 +4,14 @@
 [versions]
 # Replace these versions with the exact versions you want for your project
 registrate = "2.3.0"    # y271727uy registrate version; update if needed
-jei = "10.1.0"          # y271727uy JEI version; update if needed
+jei = "15.2.0.27"       # JEI for Minecraft 1.20.1 Forge
 
 [libraries]
 # Registrate (y271727uy coordinates - adjust group/name/version if necessary)
 registrate = { group = "com.tterrag.registrate", name = "registrate", version.ref = "registrate" }
 
-# JEI main artifact (y271727uy coordinates)
-jei = { group = "mezz", name = "jei", version.ref = "jei" }
+# JEI main artifact for Minecraft 1.20.1 Forge
+jei = { group = "mezz.jei", name = "jei-1.20.1-forge", version.ref = "jei" }
 
 [bundles]
 # A bundle named 'jei' so build.gradle's libs.bundles.jei resolves.

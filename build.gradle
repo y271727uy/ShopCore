@@ -190,7 +190,7 @@ dependencies {
     // are provided in gradle/libs.versions.toml or replaced with explicit coordinates.
     // TODO: restore once the correct artifact coordinates and versions are known.
     // jarJar(modApi(libs.registrate.get()))
-    // modImplementation(libs.bundles.jei)
+    modImplementation(libs.bundles.jei)
 
     modImplementation("maven.modrinth:farmers-delight:1.20.1-1.2.7")
     modImplementation("dev.latvian.mods:rhino-forge:2001.2.3-build.10")
@@ -199,7 +199,7 @@ dependencies {
     modImplementation("maven.modrinth:jade:11.13.2+forge")
     modImplementation("maven.modrinth:some-assembly-required:FfaVwI1D")
     modImplementation("maven.modrinth:avaritianeo:q9LjH7fG")
-    modImplementation("maven.modrinth:list-core:vkCMokbn")
+    modImplementation("maven.modrinth:list-core:whkkmSmY")
     modImplementation("maven.modrinth:touhou-little-maid:tuOQjuRE")
 
     modImplementation("maven.modrinth:sdm-shop:vHjGpgIr")

@@ -44,10 +44,12 @@ public final class SellingBinGroupManager {
     public static boolean refreshForElapsedDays(ServerLevel level) {
         SellingBinMarketSavedData marketData = SellingBinMarketSavedData.get(level);
         long currentDay = Math.floorDiv(level.getDayTime(), DAY_LENGTH_TICKS);
+        Map<String, SellingBinGroup> groups = collectGroups(level);
 
         if (!marketData.isInitialized()) {
-            marketData.setLastProcessedDay(currentDay);
-            return false;
+            // Treat a brand-new market as if the previous processed day was yesterday,
+            // so the first server tick actually generates the initial price snapshot.
+            marketData.setLastProcessedDay(currentDay - 1L);
         }
 
         long lastProcessedDay = marketData.getLastProcessedDay();
@@ -55,7 +57,6 @@ public final class SellingBinGroupManager {
             return false;
         }
 
-        Map<String, SellingBinGroup> groups = collectGroups(level);
         boolean updatedPrices = false;
         for (long day = lastProcessedDay + 1; day <= currentDay; day++) {
             Map<ResourceLocation, Integer> previousBonuses = marketData.snapshotPriceBonuses();
@@ -102,25 +103,26 @@ public final class SellingBinGroupManager {
             Map<ResourceLocation, Integer> previousBonuses,
             Map<ResourceLocation, Integer> previousCarryStages
     ) {
-        List<SellingBinRecipe> remainingRecipes = group.getRecipes();
-        if (remainingRecipes.isEmpty()) {
+        List<SellingBinGroup.Entry> remainingEntries = group.getEntries();
+        if (remainingEntries.isEmpty()) {
             return false;
         }
 
-        shuffleRecipes(remainingRecipes, level.random);
+        shuffleEntries(remainingEntries, level.random);
 
         boolean changed = false;
         int reservedIncreaseSlots = 0;
         int reservedDecreaseSlots = 0;
-        for (int i = remainingRecipes.size() - 1; i >= 0; i--) {
-            SellingBinRecipe recipe = remainingRecipes.get(i);
-            ResourceLocation recipeId = recipe.getId();
-            int previousBonus = previousBonuses.getOrDefault(recipeId, 0);
+        for (int i = remainingEntries.size() - 1; i >= 0; i--) {
+            SellingBinGroup.Entry entry = remainingEntries.get(i);
+            SellingBinRecipe recipe = entry.recipe();
+            ResourceLocation priceKey = entry.priceKey();
+            int previousBonus = previousBonuses.getOrDefault(priceKey, 0);
             if (previousBonus == 0) {
                 continue;
             }
 
-            Integer nextCarryStage = getNextCarryStage(level.random, previousCarryStages.getOrDefault(recipeId, 0));
+            Integer nextCarryStage = getNextCarryStage(level.random, previousCarryStages.getOrDefault(priceKey, 0));
             if (nextCarryStage == null) {
                 continue;
             }
@@ -129,8 +131,8 @@ public final class SellingBinGroupManager {
                 continue;
             }
 
-            changed |= applyActivePrice(marketData, recipeId, previousBonus, nextCarryStage);
-            remainingRecipes.remove(i);
+            changed |= applyActivePrice(marketData, priceKey, previousBonus, nextCarryStage);
+            remainingEntries.remove(i);
             if (previousBonus > 0) {
                 reservedIncreaseSlots++;
             } else {
@@ -143,7 +145,7 @@ public final class SellingBinGroupManager {
         int requestedFreshIncreaseCount = Math.max(0, targetIncreaseCount - reservedIncreaseSlots);
         int requestedFreshDecreaseCount = Math.max(0, targetDecreaseCount - reservedDecreaseSlots);
 
-        if (remainingRecipes.size() == 1 && requestedFreshIncreaseCount > 0 && requestedFreshDecreaseCount > 0) {
+        if (remainingEntries.size() == 1 && requestedFreshIncreaseCount > 0 && requestedFreshDecreaseCount > 0) {
             if (level.random.nextBoolean()) {
                 requestedFreshDecreaseCount = 0;
             } else {
@@ -151,18 +153,18 @@ public final class SellingBinGroupManager {
             }
         }
 
-        int increaseCount = Math.min(requestedFreshIncreaseCount, Math.max(0, remainingRecipes.size() - requestedFreshDecreaseCount));
+        int increaseCount = Math.min(requestedFreshIncreaseCount, Math.max(0, remainingEntries.size() - requestedFreshDecreaseCount));
         for (int i = 0; i < increaseCount; i++) {
-            SellingBinRecipe recipe = remainingRecipes.remove(remainingRecipes.size() - 1);
+            SellingBinGroup.Entry entry = remainingEntries.remove(remainingEntries.size() - 1);
             int amount = getRandomInRange(level.random, DAILY_INCREASE_AMOUNT_MIN, DAILY_INCREASE_AMOUNT_MAX);
-            changed |= applyPriceDelta(marketData, recipe, amount);
+            changed |= applyPriceDelta(marketData, entry, amount);
         }
 
-        int decreaseBudget = Math.min(requestedFreshDecreaseCount, remainingRecipes.size());
-        for (int i = remainingRecipes.size() - 1; i >= 0 && decreaseBudget > 0; i--) {
-            SellingBinRecipe recipe = remainingRecipes.get(i);
+        int decreaseBudget = Math.min(requestedFreshDecreaseCount, remainingEntries.size());
+        for (int i = remainingEntries.size() - 1; i >= 0 && decreaseBudget > 0; i--) {
+            SellingBinGroup.Entry entry = remainingEntries.get(i);
             int amount = getRandomInRange(level.random, DAILY_DECREASE_AMOUNT_MIN, DAILY_DECREASE_AMOUNT_MAX);
-            if (applyPriceDelta(marketData, recipe, -amount)) {
+            if (applyPriceDelta(marketData, entry, -amount)) {
                 changed = true;
                 decreaseBudget--;
             }
@@ -181,19 +183,20 @@ public final class SellingBinGroupManager {
         return null;
     }
 
-    private static boolean applyActivePrice(SellingBinMarketSavedData marketData, ResourceLocation recipeId, int priceBonus, int carryStage) {
-        boolean changed = marketData.setPriceBonus(recipeId, priceBonus);
-        changed |= marketData.setCarryStage(recipeId, carryStage);
+    private static boolean applyActivePrice(SellingBinMarketSavedData marketData, ResourceLocation priceKey, int priceBonus, int carryStage) {
+        boolean changed = marketData.setPriceBonus(priceKey, priceBonus);
+        changed |= marketData.setCarryStage(priceKey, carryStage);
         return changed;
     }
 
-    private static boolean applyPriceDelta(SellingBinMarketSavedData marketData, SellingBinRecipe recipe, int delta) {
+    private static boolean applyPriceDelta(SellingBinMarketSavedData marketData, SellingBinGroup.Entry entry, int delta) {
         if (delta == 0) {
             return false;
         }
 
-        ResourceLocation recipeId = recipe.getId();
-        int currentBonus = marketData.getPriceBonus(recipeId);
+        SellingBinRecipe recipe = entry.recipe();
+        ResourceLocation priceKey = entry.priceKey();
+        int currentBonus = marketData.getPriceBonus(priceKey);
         if (delta < 0) {
             Integer legalDelta = getLegalDecreaseDelta(recipe, currentBonus, delta);
             if (legalDelta == null) {
@@ -204,10 +207,10 @@ public final class SellingBinGroupManager {
 
         long nextBonus = (long) currentBonus + delta;
         if (nextBonus >= Integer.MAX_VALUE) {
-            return applyActivePrice(marketData, recipeId, Integer.MAX_VALUE, 0);
+            return applyActivePrice(marketData, priceKey, Integer.MAX_VALUE, 0);
         }
 
-        return applyActivePrice(marketData, recipeId, (int) nextBonus, 0);
+        return applyActivePrice(marketData, priceKey, (int) nextBonus, 0);
     }
 
     private static Integer getLegalDecreaseDelta(SellingBinRecipe recipe, int currentBonus, int requestedDelta) {
@@ -238,10 +241,10 @@ public final class SellingBinGroupManager {
         return min + random.nextInt(max - min + 1);
     }
 
-    private static void shuffleRecipes(List<SellingBinRecipe> recipes, RandomSource random) {
-        for (int i = recipes.size() - 1; i > 0; i--) {
+    private static void shuffleEntries(List<SellingBinGroup.Entry> entries, RandomSource random) {
+        for (int i = entries.size() - 1; i > 0; i--) {
             int swapIndex = random.nextInt(i + 1);
-            Collections.swap(recipes, i, swapIndex);
+            Collections.swap(entries, i, swapIndex);
         }
     }
 }

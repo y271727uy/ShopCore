@@ -60,9 +60,10 @@ public final class ShopcoreClientEvents {
         public static void onRenderTooltipPre(RenderTooltipEvent.GatherComponents event) {
             SellingBinClientPriceHelper.findRecipe(event.getItemStack()).ifPresent(recipe -> event.getTooltipElements().add(Either.right(
                     new SellingBinTooltipComponent(
-                            recipe.getPrimaryInputPreview(),
-                            SellingBinClientPriceHelper.getPreviewOutput(recipe),
-                            SellingBinClientPriceHelper.getPriceText(recipe)
+                            SellingBinClientPriceHelper.getDisplayInput(recipe, event.getItemStack()),
+                            recipe.getInputCount(),
+                            SellingBinClientPriceHelper.getDisplayOutput(recipe, event.getItemStack()),
+                            SellingBinClientPriceHelper.getPriceText(recipe, event.getItemStack())
                     )
             )));
         }

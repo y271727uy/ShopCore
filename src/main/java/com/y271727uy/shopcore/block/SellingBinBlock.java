@@ -6,6 +6,8 @@ import com.y271727uy.shopcore.block.entity.SellingBinBlockEntity;
 import net.minecraft.MethodsReturnNonnullByDefault;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+import net.minecraft.sounds.SoundEvents;
+import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.player.Player;
@@ -59,6 +61,16 @@ public class SellingBinBlock extends BaseEntityBlock {
     @Override
     protected void createBlockStateDefinition(StateDefinition.Builder<Block, BlockState> builder) {
         builder.add(FACING);
+    }
+
+    @SuppressWarnings("deprecation")
+    @Override
+    public void onRemove(BlockState state, Level level, BlockPos pos, BlockState newState, boolean isMoving) {
+        if (!state.is(newState.getBlock()) && !level.isClientSide) {
+            level.playSound(null, pos, SoundEvents.WOOD_BREAK, SoundSource.BLOCKS, 1.0F, 1.0F);
+        }
+
+        super.onRemove(state, level, pos, newState, isMoving);
     }
 
     @SuppressWarnings("deprecation")

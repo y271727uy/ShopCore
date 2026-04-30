@@ -7,7 +7,7 @@ import net.minecraft.world.item.ItemStack;
  * TooltipComponent marker for Selling Bin recipes.
  * Client-side rendering is implemented by the matching client tooltip component.
  */
-public record SellingBinTooltipComponent(ItemStack inputPreview, ItemStack output, String outputPriceText) implements TooltipComponent {
+public record SellingBinTooltipComponent(ItemStack inputPreview, int inputCount, ItemStack output, String outputPriceText) implements TooltipComponent {
 }
 
 

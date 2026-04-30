@@ -27,11 +27,25 @@ public final class SellingBinClientPriceHelper {
     }
 
     public static int getPriceBonus(SellingBinRecipe recipe) {
-        return SellingBinClientPriceCache.getPriceBonus(recipe.getId());
+        return getPriceBonus(recipe, recipe.getPrimaryInputPreview());
+    }
+
+    public static int getPriceBonus(SellingBinRecipe recipe, ItemStack stack) {
+        return SellingBinClientPriceCache.getPriceBonus(recipe.getPriceKey(stack));
     }
 
     public static ItemStack getDisplayOutput(SellingBinRecipe recipe) {
-        return recipe.getDisplayOutput(getPriceBonus(recipe));
+        return getDisplayOutput(recipe, recipe.getPrimaryInputPreview());
+    }
+
+    public static ItemStack getDisplayOutput(SellingBinRecipe recipe, ItemStack stack) {
+        return recipe.getDisplayOutput(getPriceBonus(recipe, stack));
+    }
+
+    public static ItemStack getDisplayInput(SellingBinRecipe recipe, ItemStack stack) {
+        ItemStack preview = stack.copy();
+        preview.setCount(1);
+        return preview;
     }
 
     public static ItemStack getPreviewOutput(SellingBinRecipe recipe) {
@@ -41,7 +55,11 @@ public final class SellingBinClientPriceHelper {
     }
 
     public static String getPriceText(SellingBinRecipe recipe) {
-        int priceBonus = getPriceBonus(recipe);
+        return getPriceText(recipe, recipe.getPrimaryInputPreview());
+    }
+
+    public static String getPriceText(SellingBinRecipe recipe, ItemStack stack) {
+        int priceBonus = getPriceBonus(recipe, stack);
         int min = recipe.getMinOutputCount(priceBonus);
         int max = recipe.getMaxOutputCount(priceBonus);
 

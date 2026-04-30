@@ -4,8 +4,10 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParseException;
 import com.y271727uy.shopcore.all.ModRecipes;
+import com.y271727uy.shopcore.client.sellingbin.SellingBinClientPriceCache;
 import com.y271727uy.shopcore.gameplay.sellingbin.SellingBinGroupManager;
 import net.minecraft.MethodsReturnNonnullByDefault;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.RegistryAccess;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.resources.ResourceLocation;
@@ -34,6 +36,7 @@ public class SellingBinRecipe implements Recipe<SellingBinRecipe.RecipeInput> {
     public final ResourceLocation id;
     public final Ingredient input;
     private final ItemStack[] inputChoices;
+    private final int inputCount;
     /**
      * Prototype output stack (includes NBT if provided in JSON).
      * The runtime output count is computed from base/max (if present) and then applied to a copy.
@@ -51,10 +54,11 @@ public class SellingBinRecipe implements Recipe<SellingBinRecipe.RecipeInput> {
      */
     public final String group;
 
-    public SellingBinRecipe(ResourceLocation id, Ingredient input, ItemStack output, @Nullable Integer base, @Nullable Integer max, String group) {
+    public SellingBinRecipe(ResourceLocation id, Ingredient input, int inputCount, ItemStack output, @Nullable Integer base, @Nullable Integer max, String group) {
         this.id = id;
         this.input = input;
         this.inputChoices = input.getItems();
+        this.inputCount = Math.max(1, inputCount);
         this.output = output;
         this.base = base;
         this.max = max;
@@ -70,25 +74,47 @@ public class SellingBinRecipe implements Recipe<SellingBinRecipe.RecipeInput> {
         return inputChoices.length > 1;
     }
 
+    public ResourceLocation getPriceKey(ItemStack stack) {
+        if (!isMultiChoiceInput() || stack.isEmpty() || !input.test(stack)) {
+            return id;
+        }
+
+        ResourceLocation itemId = BuiltInRegistries.ITEM.getKey(stack.getItem());
+        return ResourceLocation.fromNamespaceAndPath(
+                id.getNamespace(),
+                "selling_bin/" + id.getPath() + "/" + itemId.getNamespace() + "/" + itemId.getPath()
+        );
+    }
+
     public ItemStack[] getInputChoices() {
         return inputChoices;
+    }
+
+    public int getInputCount() {
+        return inputCount;
     }
 
     public ItemStack getPrimaryInputPreview() {
         if (inputChoices.length == 0) {
             return ItemStack.EMPTY;
         }
-        return inputChoices[0].copy();
+        ItemStack preview = inputChoices[0].copy();
+        preview.setCount(inputCount);
+        return preview;
     }
 
     public ItemStack pickRandomInputChoice(RandomSource random) {
         if (inputChoices.length == 0) {
             return ItemStack.EMPTY;
         }
+        ItemStack preview;
         if (inputChoices.length == 1) {
-            return inputChoices[0].copy();
+            preview = inputChoices[0].copy();
+        } else {
+            preview = inputChoices[random.nextInt(inputChoices.length)].copy();
         }
-        return inputChoices[random.nextInt(inputChoices.length)].copy();
+        preview.setCount(inputCount);
+        return preview;
     }
 
     @Override
@@ -130,7 +156,11 @@ public class SellingBinRecipe implements Recipe<SellingBinRecipe.RecipeInput> {
     }
 
     public int rollOutputCount(Level level) {
-        int priceBonus = getPriceBonus(level);
+        return rollOutputCount(level, getPrimaryInputPreview());
+    }
+
+    public int rollOutputCount(Level level, ItemStack inputStack) {
+        int priceBonus = getPriceBonus(level, inputStack);
         int b = getMinOutputCount(priceBonus);
         int m = getMaxOutputCount(priceBonus);
         // inclusive range
@@ -164,10 +194,14 @@ public class SellingBinRecipe implements Recipe<SellingBinRecipe.RecipeInput> {
     }
 
     private int getPriceBonus(Level level) {
+        return getPriceBonus(level, ItemStack.EMPTY);
+    }
+
+    private int getPriceBonus(Level level, ItemStack inputStack) {
         if (level instanceof ServerLevel serverLevel) {
-            return SellingBinGroupManager.getPriceBonus(serverLevel, id);
+            return SellingBinGroupManager.getPriceBonus(serverLevel, getPriceKey(inputStack));
         }
-        return 0;
+        return SellingBinClientPriceCache.getPriceBonus(getPriceKey(inputStack));
     }
 
     private static int clampToPositiveInt(long value) {
@@ -248,7 +282,12 @@ public class SellingBinRecipe implements Recipe<SellingBinRecipe.RecipeInput> {
             if (!json.has("input")) {
                 throw new JsonParseException("SellingBin recipe missing 'input'");
             }
-            Ingredient input = Ingredient.fromJson(json.get("input"));
+            JsonElement inputElement = json.get("input");
+            Ingredient input = Ingredient.fromJson(inputElement);
+            int inputCount = 1;
+            if (inputElement != null && inputElement.isJsonObject()) {
+                inputCount = Math.max(1, GsonHelper.getAsInt(inputElement.getAsJsonObject(), "count", 1));
+            }
 
             if (!json.has("output")) {
                 throw new JsonParseException("SellingBin recipe missing 'output'");
@@ -272,12 +311,13 @@ public class SellingBinRecipe implements Recipe<SellingBinRecipe.RecipeInput> {
                 max = null;
             }
 
-            return new SellingBinRecipe(recipeId, input, output, base, max, group);
+            return new SellingBinRecipe(recipeId, input, inputCount, output, base, max, group);
         }
 
         @Override
         public @Nullable SellingBinRecipe fromNetwork(ResourceLocation recipeId, FriendlyByteBuf buf) {
             Ingredient input = Ingredient.fromNetwork(buf);
+            int inputCount = buf.readVarInt();
             ItemStack output = buf.readItem();
 
             boolean hasRange = buf.readBoolean();
@@ -289,12 +329,13 @@ public class SellingBinRecipe implements Recipe<SellingBinRecipe.RecipeInput> {
             }
 
             String group = buf.readUtf();
-            return new SellingBinRecipe(recipeId, input, output, base, max, group);
+            return new SellingBinRecipe(recipeId, input, inputCount, output, base, max, group);
         }
 
         @Override
         public void toNetwork(FriendlyByteBuf buf, SellingBinRecipe recipe) {
             recipe.input.toNetwork(buf);
+            buf.writeVarInt(recipe.inputCount);
             buf.writeItem(recipe.output);
 
             boolean hasRange = recipe.base != null && recipe.max != null;

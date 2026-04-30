@@ -5,13 +5,14 @@ import com.y271727uy.shopcore.all.ModMenus;
 import com.y271727uy.shopcore.all.ModRecipes;
 import com.y271727uy.shopcore.client.menu.SellingBinMenu;
 import com.y271727uy.shopcore.recipe.SellingBinRecipe;
-import lombok.Getter;
 import net.minecraft.MethodsReturnNonnullByDefault;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.protocol.game.ClientboundBlockEntityDataPacket;
+import net.minecraft.sounds.SoundEvents;
+import net.minecraft.sounds.SoundSource;
 import net.minecraft.util.Mth;
 import net.minecraft.world.MenuProvider;
 import net.minecraft.world.entity.player.Inventory;
@@ -36,7 +37,7 @@ import java.util.List;
 @ParametersAreNonnullByDefault
 public class SellingBinBlockEntity extends BlockEntity implements MenuProvider {
 
-    /** 10分钟执行一次配方（可在这里调整） */
+    /** 10秒执行一次配方（可在这里调整） */
     public static final int INTERVAL_TICKS = 10 * 60 * 20;
     private static final float LID_ANIMATION_STEP = 0.1F;
 
@@ -45,6 +46,7 @@ public class SellingBinBlockEntity extends BlockEntity implements MenuProvider {
     private boolean lidTargetOpen = false;
     private float lastLidOpenProgress = 0.0F;
     private float lidOpenProgress = 0.0F;
+    private boolean suppressInventorySync = false;
 
     protected final ContainerData dataAccess = new ContainerData() {
         @Override
@@ -76,6 +78,9 @@ public class SellingBinBlockEntity extends BlockEntity implements MenuProvider {
         @Override
         protected void onContentsChanged(int slot) {
             setChanged();
+            if (!suppressInventorySync && level != null && !level.isClientSide) {
+                syncClientState(worldPosition, getBlockState());
+            }
         }
     };
 
@@ -109,7 +114,23 @@ public class SellingBinBlockEntity extends BlockEntity implements MenuProvider {
         }
 
         this.lidTargetOpen = open;
+        playLidSound(open);
         syncClientState(worldPosition, getBlockState());
+    }
+
+    private void playLidSound(boolean open) {
+        if (level == null || level.isClientSide) {
+            return;
+        }
+
+        level.playSound(
+                null,
+                worldPosition,
+                open ? SoundEvents.CHEST_OPEN : SoundEvents.CHEST_CLOSE,
+                SoundSource.BLOCKS,
+                0.5F,
+                level.random.nextFloat() * 0.1F + 0.9F
+        );
     }
 
     private void syncClientState(BlockPos pos, BlockState state) {
@@ -129,6 +150,8 @@ public class SellingBinBlockEntity extends BlockEntity implements MenuProvider {
     @Override
     public CompoundTag getUpdateTag() {
         CompoundTag tag = super.getUpdateTag();
+        tag.put("Inventory", itemHandler.serializeNBT());
+        tag.putInt("TicksUntilRun", ticksUntilRun);
         tag.putBoolean("LidTargetOpen", lidTargetOpen);
         tag.putFloat("LidOpenProgress", lidOpenProgress);
         tag.putFloat("LastLidOpenProgress", lastLidOpenProgress);
@@ -144,6 +167,8 @@ public class SellingBinBlockEntity extends BlockEntity implements MenuProvider {
     @Override
     public void handleUpdateTag(CompoundTag tag) {
         super.handleUpdateTag(tag);
+        readInventoryTag(tag);
+        ticksUntilRun = tag.contains("TicksUntilRun") ? tag.getInt("TicksUntilRun") : INTERVAL_TICKS;
         this.lidTargetOpen = tag.getBoolean("LidTargetOpen");
         this.lidOpenProgress = tag.getFloat("LidOpenProgress");
         this.lastLidOpenProgress = tag.getFloat("LastLidOpenProgress");
@@ -151,29 +176,43 @@ public class SellingBinBlockEntity extends BlockEntity implements MenuProvider {
 
     @Override
     public void onDataPacket(net.minecraft.network.Connection net, ClientboundBlockEntityDataPacket pkt) {
-        handleUpdateTag(pkt.getTag());
+        CompoundTag tag = pkt.getTag();
+        if (tag != null) {
+            handleUpdateTag(tag);
+        }
     }
 
     @Override
     public void load(CompoundTag tag) {
         super.load(tag);
-        if (tag.contains("Inventory")) {
-            // Backward compat: older worlds may have saved only 9 slots.
-            // ItemStackHandler NBT format uses {"Size":N, "Items":[{Slot:..}, ...]}
-            CompoundTag inv = tag.getCompound("Inventory");
-            int savedSize = inv.contains("Size") ? inv.getInt("Size") : itemHandler.getSlots();
-            if (savedSize < itemHandler.getSlots()) {
-                // Read the old inventory into a temporary handler and copy into our 27-slot handler.
-                ItemStackHandler old = new ItemStackHandler(savedSize);
-                old.deserializeNBT(inv);
-                for (int i = 0; i < Math.min(savedSize, itemHandler.getSlots()); i++) {
-                    itemHandler.setStackInSlot(i, old.getStackInSlot(i));
-                }
-            } else {
-                itemHandler.deserializeNBT(inv);
-            }
+        suppressInventorySync = true;
+        try {
+            readInventoryTag(tag);
+        } finally {
+            suppressInventorySync = false;
         }
         ticksUntilRun = tag.contains("TicksUntilRun") ? tag.getInt("TicksUntilRun") : INTERVAL_TICKS;
+    }
+
+    private void readInventoryTag(CompoundTag tag) {
+        if (!tag.contains("Inventory")) {
+            return;
+        }
+
+        // Backward compat: older worlds may have saved only 9 slots.
+        // ItemStackHandler NBT format uses {"Size":N, "Items":[{Slot:..}, ...]}
+        CompoundTag inv = tag.getCompound("Inventory");
+        int savedSize = inv.contains("Size") ? inv.getInt("Size") : itemHandler.getSlots();
+        if (savedSize < itemHandler.getSlots()) {
+            // Read the old inventory into a temporary handler and copy into our 27-slot handler.
+            ItemStackHandler old = new ItemStackHandler(savedSize);
+            old.deserializeNBT(inv);
+            for (int i = 0; i < Math.min(savedSize, itemHandler.getSlots()); i++) {
+                itemHandler.setStackInSlot(i, old.getStackInSlot(i));
+            }
+        } else {
+            itemHandler.deserializeNBT(inv);
+        }
     }
 
     @SuppressWarnings("unused")
@@ -189,7 +228,7 @@ public class SellingBinBlockEntity extends BlockEntity implements MenuProvider {
             }
         }
         if (level.isClientSide) return;
-        if (ticksUntilRun-- > 0) {
+        if (--ticksUntilRun > 0) {
             setChanged();
             return;
         }
@@ -230,7 +269,8 @@ public class SellingBinBlockEntity extends BlockEntity implements MenuProvider {
             if (recipeOpt.isEmpty()) continue;
 
             SellingBinRecipe recipe = recipeOpt.get();
-            int sellCount = stack.getCount();
+            int inputCount = Math.max(1, recipe.getInputCount());
+            int sellCount = stack.getCount() / inputCount;
             if (sellCount <= 0) continue;
 
             planned.add(new Planned(slot, recipe, sellCount));
@@ -246,13 +286,19 @@ public class SellingBinBlockEntity extends BlockEntity implements MenuProvider {
             int toSell = Math.min(p.sellCount(), available);
             if (toSell <= 0) continue;
 
-            // consume all chosen inputs
-            itemHandler.extractItem(p.slot(), toSell, false);
+            int inputCount = Math.max(1, p.recipe().getInputCount());
+            int requiredItems = toSell * inputCount;
+            if (requiredItems <= 0 || available < requiredItems) {
+                continue;
+            }
 
-            // produce outputs: each input item triggers one roll (base/max) and totals are accumulated
+            // consume all chosen inputs
+            itemHandler.extractItem(p.slot(), requiredItems, false);
+
+            // produce outputs: each recipe batch triggers one roll (base/max) and totals are accumulated
             int totalOut = 0;
             for (int k = 0; k < toSell; k++) {
-                totalOut += p.recipe().rollOutputCount(level);
+                totalOut += p.recipe().rollOutputCount(level, current);
             }
             if (totalOut <= 0) continue;
 

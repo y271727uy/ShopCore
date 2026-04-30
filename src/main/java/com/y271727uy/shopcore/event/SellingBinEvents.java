@@ -42,6 +42,7 @@ public final class SellingBinEvents {
     @SubscribeEvent
     public static void onPlayerLoggedIn(PlayerEvent.PlayerLoggedInEvent event) {
         if (event.getEntity() instanceof ServerPlayer serverPlayer) {
+            SellingBinGroupManager.refreshForElapsedDays(serverPlayer.serverLevel());
             syncPlayer(serverPlayer);
         }
     }
