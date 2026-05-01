@@ -14,9 +14,12 @@ import java.util.Map;
 
 public final class SellingBinMarketSavedData extends SavedData {
     private static final String DATA_NAME = ShopcoreMod.MODID + "_selling_bin_market";
+    private static final String FLOATING_BONUSES_TAG = "PriceBonuses";
+    private static final String SEASONAL_BONUSES_TAG = "SeasonalPriceBonuses";
     private static final long UNINITIALIZED_DAY = Long.MIN_VALUE;
 
-    private final Map<ResourceLocation, Integer> priceBonusByRecipe = new HashMap<>();
+    private final Map<ResourceLocation, Integer> floatingPriceBonusByRecipe = new HashMap<>();
+    private final Map<ResourceLocation, Integer> seasonalPriceBonusByRecipe = new HashMap<>();
     private final Map<ResourceLocation, Integer> carryStageByRecipe = new HashMap<>();
     private long lastProcessedDay = UNINITIALIZED_DAY;
 
@@ -34,7 +37,12 @@ public final class SellingBinMarketSavedData extends SavedData {
             data.lastProcessedDay = tag.getLong("LastProcessedDay");
         }
 
-        ListTag bonuses = tag.getList("PriceBonuses", Tag.TAG_COMPOUND);
+        loadBonusList(tag.getList(FLOATING_BONUSES_TAG, Tag.TAG_COMPOUND), data.floatingPriceBonusByRecipe, data.carryStageByRecipe);
+        loadBonusList(tag.getList(SEASONAL_BONUSES_TAG, Tag.TAG_COMPOUND), data.seasonalPriceBonusByRecipe, null);
+        return data;
+    }
+
+    private static void loadBonusList(ListTag bonuses, Map<ResourceLocation, Integer> targetBonuses, Map<ResourceLocation, Integer> carryStages) {
         for (Tag element : bonuses) {
             CompoundTag bonusTag = (CompoundTag) element;
             if (!bonusTag.contains("Recipe", Tag.TAG_STRING)) {
@@ -47,13 +55,16 @@ public final class SellingBinMarketSavedData extends SavedData {
             }
 
             int bonus = bonusTag.getInt("Bonus");
-            if (bonus != 0) {
-                data.priceBonusByRecipe.put(recipeId, bonus);
+            if (bonus == 0) {
+                continue;
+            }
+
+            targetBonuses.put(recipeId, bonus);
+            if (carryStages != null) {
                 int carryStage = bonusTag.contains("CarryStage", Tag.TAG_INT) ? Math.max(0, bonusTag.getInt("CarryStage")) : 0;
-                data.carryStageByRecipe.put(recipeId, carryStage);
+                carryStages.put(recipeId, carryStage);
             }
         }
-        return data;
     }
 
     boolean isInitialized() {
@@ -72,22 +83,71 @@ public final class SellingBinMarketSavedData extends SavedData {
     }
 
     int getPriceBonus(ResourceLocation recipeId) {
-        return priceBonusByRecipe.getOrDefault(recipeId, 0);
+        long totalBonus = (long) getFloatingPriceBonus(recipeId) + getSeasonalPriceBonus(recipeId);
+        if (totalBonus <= Integer.MIN_VALUE) {
+            return Integer.MIN_VALUE;
+        }
+        if (totalBonus >= Integer.MAX_VALUE) {
+            return Integer.MAX_VALUE;
+        }
+        return (int) totalBonus;
     }
 
-    boolean setPriceBonus(ResourceLocation recipeId, int bonus) {
-        int currentBonus = getPriceBonus(recipeId);
+    int getFloatingPriceBonus(ResourceLocation recipeId) {
+        return floatingPriceBonusByRecipe.getOrDefault(recipeId, 0);
+    }
+
+    boolean setFloatingPriceBonus(ResourceLocation recipeId, int bonus) {
+        int currentBonus = getFloatingPriceBonus(recipeId);
         if (currentBonus == bonus) {
             return false;
         }
 
         if (bonus == 0) {
-            priceBonusByRecipe.remove(recipeId);
+            floatingPriceBonusByRecipe.remove(recipeId);
             carryStageByRecipe.remove(recipeId);
         } else {
-            priceBonusByRecipe.put(recipeId, bonus);
+            floatingPriceBonusByRecipe.put(recipeId, bonus);
         }
 
+        setDirty();
+        return true;
+    }
+
+    int getSeasonalPriceBonus(ResourceLocation recipeId) {
+        return seasonalPriceBonusByRecipe.getOrDefault(recipeId, 0);
+    }
+
+    boolean setSeasonalPriceBonus(ResourceLocation recipeId, int bonus) {
+        int currentBonus = getSeasonalPriceBonus(recipeId);
+        if (currentBonus == bonus) {
+            return false;
+        }
+
+        if (bonus == 0) {
+            seasonalPriceBonusByRecipe.remove(recipeId);
+        } else {
+            seasonalPriceBonusByRecipe.put(recipeId, bonus);
+        }
+
+        setDirty();
+        return true;
+    }
+
+    boolean setSeasonalPriceBonuses(Map<ResourceLocation, Integer> bonuses) {
+        Map<ResourceLocation, Integer> normalizedBonuses = new HashMap<>();
+        bonuses.forEach((recipeId, bonus) -> {
+            if (bonus != 0) {
+                normalizedBonuses.put(recipeId, bonus);
+            }
+        });
+
+        if (seasonalPriceBonusByRecipe.equals(normalizedBonuses)) {
+            return false;
+        }
+
+        seasonalPriceBonusByRecipe.clear();
+        seasonalPriceBonusByRecipe.putAll(normalizedBonuses);
         setDirty();
         return true;
     }
@@ -98,7 +158,7 @@ public final class SellingBinMarketSavedData extends SavedData {
 
     boolean setCarryStage(ResourceLocation recipeId, int carryStage) {
         int normalizedStage = Math.max(0, carryStage);
-        if (!priceBonusByRecipe.containsKey(recipeId)) {
+        if (!floatingPriceBonusByRecipe.containsKey(recipeId)) {
             normalizedStage = 0;
         }
 
@@ -121,27 +181,57 @@ public final class SellingBinMarketSavedData extends SavedData {
         return new HashMap<>(carryStageByRecipe);
     }
 
-    boolean clearActiveAdjustments() {
-        if (priceBonusByRecipe.isEmpty() && carryStageByRecipe.isEmpty()) {
+    boolean clearFloatingAdjustments() {
+        if (floatingPriceBonusByRecipe.isEmpty() && carryStageByRecipe.isEmpty()) {
             return false;
         }
 
-        priceBonusByRecipe.clear();
+        floatingPriceBonusByRecipe.clear();
         carryStageByRecipe.clear();
         setDirty();
         return true;
     }
 
+    boolean clearSeasonalAdjustments() {
+        if (seasonalPriceBonusByRecipe.isEmpty()) {
+            return false;
+        }
+
+        seasonalPriceBonusByRecipe.clear();
+        setDirty();
+        return true;
+    }
+
+    Map<ResourceLocation, Integer> snapshotFloatingPriceBonuses() {
+        return new HashMap<>(floatingPriceBonusByRecipe);
+    }
+
+    Map<ResourceLocation, Integer> snapshotSeasonalPriceBonuses() {
+        return new HashMap<>(seasonalPriceBonusByRecipe);
+    }
+
     Map<ResourceLocation, Integer> snapshotPriceBonuses() {
-        return new HashMap<>(priceBonusByRecipe);
+        Map<ResourceLocation, Integer> totalBonuses = snapshotSeasonalPriceBonuses();
+        floatingPriceBonusByRecipe.forEach((recipeId, bonus) -> totalBonuses.merge(recipeId, bonus, (left, right) -> {
+            long sum = (long) left + right;
+            if (sum <= Integer.MIN_VALUE) {
+                return Integer.MIN_VALUE;
+            }
+            if (sum >= Integer.MAX_VALUE) {
+                return Integer.MAX_VALUE;
+            }
+            return (int) sum;
+        }));
+        totalBonuses.entrySet().removeIf(entry -> entry.getValue() == 0);
+        return totalBonuses;
     }
 
     @Override
     public @NotNull CompoundTag save(CompoundTag tag) {
         tag.putLong("LastProcessedDay", lastProcessedDay);
 
-        ListTag bonuses = new ListTag();
-        priceBonusByRecipe.forEach((recipeId, bonus) -> {
+        ListTag floatingBonuses = new ListTag();
+        floatingPriceBonusByRecipe.forEach((recipeId, bonus) -> {
             if (bonus == 0) {
                 return;
             }
@@ -150,9 +240,22 @@ public final class SellingBinMarketSavedData extends SavedData {
             bonusTag.putString("Recipe", recipeId.toString());
             bonusTag.putInt("Bonus", bonus);
             bonusTag.putInt("CarryStage", getCarryStage(recipeId));
-            bonuses.add(bonusTag);
+            floatingBonuses.add(bonusTag);
         });
-        tag.put("PriceBonuses", bonuses);
+        tag.put(FLOATING_BONUSES_TAG, floatingBonuses);
+
+        ListTag seasonalBonuses = new ListTag();
+        seasonalPriceBonusByRecipe.forEach((recipeId, bonus) -> {
+            if (bonus == 0) {
+                return;
+            }
+
+            CompoundTag bonusTag = new CompoundTag();
+            bonusTag.putString("Recipe", recipeId.toString());
+            bonusTag.putInt("Bonus", bonus);
+            seasonalBonuses.add(bonusTag);
+        });
+        tag.put(SEASONAL_BONUSES_TAG, seasonalBonuses);
         return tag;
     }
 }

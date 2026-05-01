@@ -1,12 +1,18 @@
 package com.y271727uy.shopcore.gameplay.sellingbin;
 
 import com.y271727uy.shopcore.all.ModRecipes;
+import com.y271727uy.shopcore.integration.sereneseasons.SereneSeasonsCompat;
 import com.y271727uy.shopcore.recipe.SellingBinRecipe;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.util.RandomSource;
 
-import java.util.*;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 
 public final class SellingBinGroupManager {
     public static final long DAY_LENGTH_TICKS = 24000L;
@@ -21,6 +27,7 @@ public final class SellingBinGroupManager {
     private static final float FIRST_CARRY_CHANCE = 0.25F;
     private static final float SECOND_CARRY_CHANCE = 0.10F;
     private static final Object GROUP_CACHE_LOCK = new Object();
+    private static final Comparator<SellingBinGroup.Entry> ENTRY_ORDER = Comparator.comparing(entry -> entry.priceKey().toString());
 
     private static Map<String, SellingBinGroup> cachedGroups;
 
@@ -35,6 +42,10 @@ public final class SellingBinGroupManager {
         return SellingBinMarketSavedData.get(level).snapshotPriceBonuses();
     }
 
+    public static Map<ResourceLocation, Integer> snapshotSeasonalPriceBonuses(ServerLevel level) {
+        return SellingBinMarketSavedData.get(level).snapshotSeasonalPriceBonuses();
+    }
+
     public static void invalidateCachedGroups() {
         synchronized (GROUP_CACHE_LOCK) {
             cachedGroups = null;
@@ -45,6 +56,7 @@ public final class SellingBinGroupManager {
         SellingBinMarketSavedData marketData = SellingBinMarketSavedData.get(level);
         long currentDay = Math.floorDiv(level.getDayTime(), DAY_LENGTH_TICKS);
         Map<String, SellingBinGroup> groups = collectGroups(level);
+        String currentSeasonId = SereneSeasonsCompat.getCurrentSeasonId(level).orElse("");
 
         if (!marketData.isInitialized()) {
             // Treat a brand-new market as if the previous processed day was yesterday,
@@ -52,18 +64,19 @@ public final class SellingBinGroupManager {
             marketData.setLastProcessedDay(currentDay - 1L);
         }
 
+        boolean updatedPrices = refreshSeasonalAdjustments(marketData, groups, currentSeasonId);
+
         long lastProcessedDay = marketData.getLastProcessedDay();
         if (currentDay <= lastProcessedDay) {
-            return false;
+            return updatedPrices;
         }
 
-        boolean updatedPrices = false;
         for (long day = lastProcessedDay + 1; day <= currentDay; day++) {
-            Map<ResourceLocation, Integer> previousBonuses = marketData.snapshotPriceBonuses();
+            Map<ResourceLocation, Integer> previousFloatingBonuses = marketData.snapshotFloatingPriceBonuses();
             Map<ResourceLocation, Integer> previousCarryStages = marketData.snapshotCarryStages();
-            updatedPrices |= marketData.clearActiveAdjustments();
+            updatedPrices |= marketData.clearFloatingAdjustments();
             for (SellingBinGroup group : groups.values()) {
-                updatedPrices |= applyDailyGroupAdjustments(level, marketData, group, previousBonuses, previousCarryStages);
+                updatedPrices |= applyDailyGroupAdjustments(level, marketData, group, previousFloatingBonuses, previousCarryStages);
             }
         }
 
@@ -96,11 +109,48 @@ public final class SellingBinGroupManager {
         return groups;
     }
 
+    private static boolean refreshSeasonalAdjustments(SellingBinMarketSavedData marketData, Map<String, SellingBinGroup> groups, String currentSeasonId) {
+        return marketData.setSeasonalPriceBonuses(buildSeasonalBonuses(groups, currentSeasonId));
+    }
+
+    private static Map<ResourceLocation, Integer> buildSeasonalBonuses(Map<String, SellingBinGroup> groups, String currentSeasonId) {
+        Map<ResourceLocation, Integer> seasonalBonuses = new HashMap<>();
+        if (currentSeasonId == null || currentSeasonId.isBlank()) {
+            return seasonalBonuses;
+        }
+
+        for (SellingBinSeasonalPriceRules.SeasonalPriceRule rule : SellingBinSeasonalPriceRules.rules()) {
+            if (!rule.matchesSeason(currentSeasonId)) {
+                continue;
+            }
+
+            SellingBinGroup group = groups.get(rule.groupName());
+            if (group == null || group.isEmpty()) {
+                continue;
+            }
+
+            List<SellingBinGroup.Entry> entries = group.getEntries();
+            entries.sort(ENTRY_ORDER);
+            int selectedCount = Math.min(rule.count(), entries.size());
+            for (int i = 0; i < selectedCount; i++) {
+                SellingBinGroup.Entry entry = entries.get(i);
+                int bonus = rule.bonusFor(entry.priceKey());
+                if (bonus <= 0) {
+                    continue;
+                }
+                seasonalBonuses.merge(entry.priceKey(), bonus, SellingBinGroupManager::mergeBonus);
+            }
+        }
+
+        seasonalBonuses.entrySet().removeIf(entry -> entry.getValue() == 0);
+        return seasonalBonuses;
+    }
+
     private static boolean applyDailyGroupAdjustments(
             ServerLevel level,
             SellingBinMarketSavedData marketData,
             SellingBinGroup group,
-            Map<ResourceLocation, Integer> previousBonuses,
+            Map<ResourceLocation, Integer> previousFloatingBonuses,
             Map<ResourceLocation, Integer> previousCarryStages
     ) {
         List<SellingBinGroup.Entry> remainingEntries = group.getEntries();
@@ -117,17 +167,19 @@ public final class SellingBinGroupManager {
             SellingBinGroup.Entry entry = remainingEntries.get(i);
             SellingBinRecipe recipe = entry.recipe();
             ResourceLocation priceKey = entry.priceKey();
-            int previousBonus = previousBonuses.getOrDefault(priceKey, 0);
+            int previousBonus = previousFloatingBonuses.getOrDefault(priceKey, 0);
             if (previousBonus == 0) {
                 continue;
             }
 
+            int seasonalBonus = marketData.getSeasonalPriceBonus(priceKey);
             Integer nextCarryStage = getNextCarryStage(level.random, previousCarryStages.getOrDefault(priceKey, 0));
             if (nextCarryStage == null) {
                 continue;
             }
 
-            if (!isLegalPriceBonus(recipe, previousBonus)) {
+            long currentTotalBonus = (long) previousBonus + seasonalBonus;
+            if (!isLegalPriceBonus(recipe, clampToInt(currentTotalBonus))) {
                 continue;
             }
 
@@ -184,7 +236,7 @@ public final class SellingBinGroupManager {
     }
 
     private static boolean applyActivePrice(SellingBinMarketSavedData marketData, ResourceLocation priceKey, int priceBonus, int carryStage) {
-        boolean changed = marketData.setPriceBonus(priceKey, priceBonus);
+        boolean changed = marketData.setFloatingPriceBonus(priceKey, priceBonus);
         changed |= marketData.setCarryStage(priceKey, carryStage);
         return changed;
     }
@@ -196,16 +248,18 @@ public final class SellingBinGroupManager {
 
         SellingBinRecipe recipe = entry.recipe();
         ResourceLocation priceKey = entry.priceKey();
-        int currentBonus = marketData.getPriceBonus(priceKey);
+        int currentFloatingBonus = marketData.getFloatingPriceBonus(priceKey);
+        int seasonalBonus = marketData.getSeasonalPriceBonus(priceKey);
+        long currentTotalBonus = (long) currentFloatingBonus + seasonalBonus;
         if (delta < 0) {
-            Integer legalDelta = getLegalDecreaseDelta(recipe, currentBonus, delta);
+            Integer legalDelta = getLegalDecreaseDelta(recipe, currentTotalBonus, delta);
             if (legalDelta == null) {
                 return false;
             }
             delta = legalDelta;
         }
 
-        long nextBonus = (long) currentBonus + delta;
+        long nextBonus = (long) currentFloatingBonus + delta;
         if (nextBonus >= Integer.MAX_VALUE) {
             return applyActivePrice(marketData, priceKey, Integer.MAX_VALUE, 0);
         }
@@ -213,16 +267,16 @@ public final class SellingBinGroupManager {
         return applyActivePrice(marketData, priceKey, (int) nextBonus, 0);
     }
 
-    private static Integer getLegalDecreaseDelta(SellingBinRecipe recipe, int currentBonus, int requestedDelta) {
+    private static Integer getLegalDecreaseDelta(SellingBinRecipe recipe, long currentTotalBonus, int requestedDelta) {
         if (requestedDelta >= 0) {
             return requestedDelta;
         }
 
-        if (isLegalPriceBonus(recipe, currentBonus + requestedDelta)) {
+        if (isLegalPriceBonus(recipe, clampToInt(currentTotalBonus + requestedDelta))) {
             return requestedDelta;
         }
 
-        if (requestedDelta != -1 && isLegalPriceBonus(recipe, currentBonus - 1)) {
+        if (requestedDelta != -1 && isLegalPriceBonus(recipe, clampToInt(currentTotalBonus - 1L))) {
             return -1;
         }
 
@@ -246,5 +300,26 @@ public final class SellingBinGroupManager {
             int swapIndex = random.nextInt(i + 1);
             Collections.swap(entries, i, swapIndex);
         }
+    }
+
+    private static int mergeBonus(int left, int right) {
+        long sum = (long) left + right;
+        if (sum <= Integer.MIN_VALUE) {
+            return Integer.MIN_VALUE;
+        }
+        if (sum >= Integer.MAX_VALUE) {
+            return Integer.MAX_VALUE;
+        }
+        return (int) sum;
+    }
+
+    private static int clampToInt(long value) {
+        if (value <= Integer.MIN_VALUE) {
+            return Integer.MIN_VALUE;
+        }
+        if (value >= Integer.MAX_VALUE) {
+            return Integer.MAX_VALUE;
+        }
+        return (int) value;
     }
 }

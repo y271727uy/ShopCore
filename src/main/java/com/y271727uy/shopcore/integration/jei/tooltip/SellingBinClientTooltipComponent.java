@@ -22,27 +22,36 @@ public class SellingBinClientTooltipComponent implements ClientTooltipComponent 
     private static final int OVERLAY_SHADOW_EXTENT = 1;
     private static final int OVERLAY_EXTRA_WIDTH = Math.max(0, OVERLAY_OFFSET_X) + OVERLAY_SHADOW_EXTENT;
     private static final int OVERLAY_EXTRA_HEIGHT = Math.max(0, OVERLAY_OFFSET_Y) + OVERLAY_SHADOW_EXTENT;
+    private static final int SEASON_LINE_HEIGHT = 10;
+    private static final int SEASON_LINE_COLOR = 0xFFFFFF;
 
     private final ItemStack inputPreview;
     private final int inputCount;
     private final ItemStack output;
     private final String outputPriceText;
+    private final String seasonalBonusText;
 
     public SellingBinClientTooltipComponent(SellingBinTooltipComponent component) {
         this.output = component.output().copy();
         this.outputPriceText = component.outputPriceText();
+        this.seasonalBonusText = component.seasonalBonusText();
         this.inputPreview = component.inputPreview().copy();
         this.inputCount = Math.max(1, component.inputCount());
     }
 
     @Override
     public int getHeight() {
-        return SLOT_SIZE + OVERLAY_EXTRA_HEIGHT;
+        return SLOT_SIZE + OVERLAY_EXTRA_HEIGHT + (seasonalBonusText.isEmpty() ? 0 : SEASON_LINE_HEIGHT);
     }
 
     @Override
     public int getWidth(Font font) {
-        return SLOT_SIZE + SEPARATOR_W + SLOT_SIZE + OVERLAY_EXTRA_WIDTH;
+        int baseWidth = SLOT_SIZE + SEPARATOR_W + SLOT_SIZE + OVERLAY_EXTRA_WIDTH;
+        if (seasonalBonusText.isEmpty()) {
+            return baseWidth;
+        }
+
+        return Math.max(baseWidth, font.width(seasonalBonusText) + 2);
     }
 
     @Override
@@ -59,6 +68,10 @@ public class SellingBinClientTooltipComponent implements ClientTooltipComponent 
             int outX = x + SLOT_SIZE + SEPARATOR_W;
             guiGraphics.renderItem(output, outX + 1, y + 1);
             renderOverlayText(font, guiGraphics, outX, y, outputPriceText);
+        }
+
+        if (!seasonalBonusText.isEmpty()) {
+            guiGraphics.drawString(font, seasonalBonusText, x + 1, y + SLOT_SIZE + 2, SEASON_LINE_COLOR, true);
         }
     }
 

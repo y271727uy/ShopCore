@@ -63,7 +63,8 @@ public final class ShopcoreClientEvents {
                             SellingBinClientPriceHelper.getDisplayInput(recipe, event.getItemStack()),
                             recipe.getInputCount(),
                             SellingBinClientPriceHelper.getDisplayOutput(recipe, event.getItemStack()),
-                            SellingBinClientPriceHelper.getPriceText(recipe, event.getItemStack())
+                            SellingBinClientPriceHelper.getPriceText(recipe, event.getItemStack()),
+                            SellingBinClientPriceHelper.getSeasonalBonusText(recipe, event.getItemStack())
                     )
             )));
         }
@@ -74,4 +75,3 @@ public final class ShopcoreClientEvents {
         }
     }
 }
-

@@ -18,7 +18,7 @@ public class ModMessages {
     public static void register() {
         SimpleChannel net = NetworkRegistry.ChannelBuilder
                 .named(ResourceLocation.fromNamespaceAndPath(ShopcoreMod.MODID, "messages"))
-                .networkProtocolVersion(() -> "1.0")
+                .networkProtocolVersion(() -> "1.1")
                 .clientAcceptedVersions(s -> true)
                 .serverAcceptedVersions(s -> true)
                 .simpleChannel();
