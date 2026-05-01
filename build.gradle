@@ -187,8 +187,6 @@ obfuscation {
 dependencies {
     // The project originally referenced these via the version catalog (libs).
     // They are commented out to avoid build failure until correct coordinates/versions
-    // are provided in gradle/libs.versions.toml or replaced with explicit coordinates.
-    // TODO: restore once the correct artifact coordinates and versions are known.
     // jarJar(modApi(libs.registrate.get()))
     modImplementation(libs.bundles.jei)
 
@@ -207,6 +205,11 @@ dependencies {
     modImplementation("curse.maven:ftb-library-forge-404465:7296748")
     modImplementation("curse.maven:sdm-economy-1102542:6145324")
     modImplementation("maven.modrinth:easy-npc:AE2B5XuV")
+
+    modImplementation("maven.modrinth:serene-seasons-fix:fwG8dmI2")
+    modImplementation("maven.modrinth:seasonhud:1.20.1-1.13.17")
+    modImplementation("maven.modrinth:glitchcore:0.0.1.1")
+    modImplementation("maven.modrinth:serene-seasons:YXTfAkOf")
 
     modImplementation("maven.modrinth:kotlin-for-forge:Zsh14XeQ")
 
