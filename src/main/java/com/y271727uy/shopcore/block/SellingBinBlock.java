@@ -4,10 +4,12 @@ import com.y271727uy.shopcore.all.ModBlockEntities;
 import com.y271727uy.shopcore.all.ModMenus;
 import com.y271727uy.shopcore.block.entity.SellingBinBlockEntity;
 import net.minecraft.MethodsReturnNonnullByDefault;
+import net.minecraft.ChatFormatting;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
+import net.minecraft.network.chat.Component;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.player.Player;
@@ -82,6 +84,11 @@ public class SellingBinBlock extends BaseEntityBlock {
 
         BlockEntity be = level.getBlockEntity(pos);
         if (player instanceof net.minecraft.server.level.ServerPlayer serverPlayer && be instanceof SellingBinBlockEntity sellingBin) {
+            if (sellingBin.isBound() && !sellingBin.isBoundTo(serverPlayer)) {
+                serverPlayer.displayClientMessage(Component.literal("该出货箱已绑定其他玩家!").withStyle(ChatFormatting.RED), false);
+                return InteractionResult.CONSUME;
+            }
+
             sellingBin.setLidTargetOpen(true);
             ModMenus.open(serverPlayer, sellingBin, pos);
             return InteractionResult.CONSUME;

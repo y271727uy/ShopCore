@@ -61,20 +61,43 @@ public final class SdmCurrencyHelperBridge {
     }
 
     public static CurrencyOperationResult increase(Player player, double amount) {
-        return adjust(player, Math.abs(amount));
+        return adjust(player, player.getUUID(), Math.abs(amount));
     }
 
     public static CurrencyOperationResult decrease(Player player, double amount) {
-        return adjust(player, -Math.abs(amount));
+        return adjust(player, player.getUUID(), -Math.abs(amount));
     }
 
     public static CurrencyOperationResult adjust(Player player, double delta) {
-        Objects.requireNonNull(player, "player");
+        return adjust(player, player.getUUID(), delta);
+    }
+
+    @SuppressWarnings("unused")
+    public static CurrencyOperationResult increase(UUID accountUuid, double amount) {
+        return adjust(null, Objects.requireNonNull(accountUuid, "accountUuid"), Math.abs(amount));
+    }
+
+    @SuppressWarnings("unused")
+    public static CurrencyOperationResult decrease(UUID accountUuid, double amount) {
+        return adjust(null, Objects.requireNonNull(accountUuid, "accountUuid"), -Math.abs(amount));
+    }
+
+    @SuppressWarnings("unused")
+    public static CurrencyOperationResult adjust(UUID accountUuid, double delta) {
+        return adjust(null, Objects.requireNonNull(accountUuid, "accountUuid"), delta);
+    }
+
+    @SuppressWarnings("unused")
+    public static OptionalDouble queryBalance(UUID accountUuid) {
+        return queryBalance(null, Objects.requireNonNull(accountUuid, "accountUuid"));
+    }
+
+    private static CurrencyOperationResult adjust(Player player, UUID accountUuid, double delta) {
         if (!Double.isFinite(delta)) {
             return CurrencyOperationResult.failure(delta, "currency amount must be finite");
         }
         if (delta == 0D) {
-            return CurrencyOperationResult.success(0D, queryBalance(player), "no-op currency change");
+            return CurrencyOperationResult.success(0D, queryBalance(player, accountUuid), "no-op currency change");
         }
 
         Class<?> helper = resolveHelperClass();
@@ -84,22 +107,28 @@ public final class SdmCurrencyHelperBridge {
 
         double amount = Math.abs(delta);
         List<String> methodNames = delta > 0 ? INCREASE_METHOD_NAMES : DECREASE_METHOD_NAMES;
-        InvocationOutcome outcome = invokeOperation(helper, methodNames, player, amount);
+        InvocationOutcome outcome = invokeOperation(helper, methodNames, player, accountUuid, amount);
         if (!outcome.success()) {
             return CurrencyOperationResult.failure(delta, outcome.message());
         }
 
-        return CurrencyOperationResult.success(delta, queryBalance(player), outcome.message());
+        return CurrencyOperationResult.success(delta, queryBalance(player, accountUuid), outcome.message());
     }
 
     public static OptionalDouble queryBalance(Player player) {
-        Objects.requireNonNull(player, "player");
+        return queryBalance(player, player.getUUID());
+    }
+
+    private static OptionalDouble queryBalance(Player player, UUID accountUuid) {
+        if (player == null && accountUuid == null) {
+            return OptionalDouble.empty();
+        }
         Class<?> helper = resolveHelperClass();
         if (helper == null) {
             return OptionalDouble.empty();
         }
 
-        InvocationOutcome outcome = invokeQuery(helper, player);
+        InvocationOutcome outcome = invokeQuery(helper, player, accountUuid);
         if (!outcome.success() || !(outcome.value() instanceof Number number)) {
             return OptionalDouble.empty();
         }
@@ -147,8 +176,8 @@ public final class SdmCurrencyHelperBridge {
         }
     }
 
-    private static InvocationOutcome invokeOperation(Class<?> helper, List<String> methodNames, Player player, double amount) {
-        Method method = findCandidateMethod(helper, methodNames, candidate -> candidate.length >= 2 && candidate.length <= 3, player, amount);
+    private static InvocationOutcome invokeOperation(Class<?> helper, List<String> methodNames, Player player, UUID accountUuid, double amount) {
+        Method method = findCandidateMethod(helper, methodNames, candidate -> candidate.length >= 2 && candidate.length <= 3, player, accountUuid, amount);
         if (method == null) {
             return InvocationOutcome.failure("no compatible CurrencyHelper operation method was found");
         }
@@ -159,7 +188,7 @@ public final class SdmCurrencyHelperBridge {
         }
 
         try {
-            Object[] arguments = buildArguments(method, player, amount);
+            Object[] arguments = buildArguments(method, player, accountUuid, amount);
             if (arguments == null) {
                 return InvocationOutcome.failure("CurrencyHelper method signature is not supported: " + method);
             }
@@ -174,8 +203,8 @@ public final class SdmCurrencyHelperBridge {
         }
     }
 
-    private static InvocationOutcome invokeQuery(Class<?> helper, Player player) {
-        Method method = findCandidateMethod(helper, BALANCE_METHOD_NAMES, candidate -> candidate.length == 1, player, 0D);
+    private static InvocationOutcome invokeQuery(Class<?> helper, Player player, UUID accountUuid) {
+        Method method = findCandidateMethod(helper, BALANCE_METHOD_NAMES, candidate -> candidate.length == 1, player, accountUuid, 0D);
         if (method == null) {
             return InvocationOutcome.failure("no compatible CurrencyHelper balance method was found");
         }
@@ -186,7 +215,7 @@ public final class SdmCurrencyHelperBridge {
         }
 
         try {
-            Object[] arguments = buildArguments(method, player, 0D);
+            Object[] arguments = buildArguments(method, player, accountUuid, 0D);
             if (arguments == null) {
                 return InvocationOutcome.failure("CurrencyHelper balance method signature is not supported: " + method);
             }
@@ -198,7 +227,7 @@ public final class SdmCurrencyHelperBridge {
         }
     }
 
-    private static Method findCandidateMethod(Class<?> helper, List<String> methodNames, java.util.function.Predicate<Class<?>[]> signaturePredicate, Player player, double amount) {
+    private static Method findCandidateMethod(Class<?> helper, List<String> methodNames, java.util.function.Predicate<Class<?>[]> signaturePredicate, Player player, UUID accountUuid, double amount) {
         for (Method method : helper.getMethods()) {
             if (!methodNames.contains(method.getName())) {
                 continue;
@@ -206,14 +235,14 @@ public final class SdmCurrencyHelperBridge {
             if (!signaturePredicate.test(method.getParameterTypes())) {
                 continue;
             }
-            if (buildArguments(method, player, amount) != null) {
+            if (buildArguments(method, player, accountUuid, amount) != null) {
                 return method;
             }
         }
         return null;
     }
 
-    private static Object[] buildArguments(Method method, Player player, double amount) {
+    private static Object[] buildArguments(Method method, Player player, UUID accountUuid, double amount) {
         Class<?>[] parameterTypes = method.getParameterTypes();
         Object[] arguments = new Object[parameterTypes.length];
 
@@ -223,8 +252,8 @@ public final class SdmCurrencyHelperBridge {
 
             if (isPlayerType(parameterType, player)) {
                 value = player;
-            } else if (isUuidType(parameterType)) {
-                value = player.getUUID();
+            } else if (isUuidType(parameterType, accountUuid)) {
+                value = accountUuid;
             } else if (isStringType(parameterType)) {
                 value = DEFAULT_REASON;
             } else if (isBooleanType(parameterType)) {
@@ -243,11 +272,11 @@ public final class SdmCurrencyHelperBridge {
     }
 
     private static boolean isPlayerType(Class<?> parameterType, Player player) {
-        return parameterType.isInstance(player) || parameterType.isAssignableFrom(player.getClass());
+        return player != null && (parameterType.isInstance(player) || parameterType.isAssignableFrom(player.getClass()));
     }
 
-    private static boolean isUuidType(Class<?> parameterType) {
-        return UUID.class.isAssignableFrom(parameterType);
+    private static boolean isUuidType(Class<?> parameterType, UUID accountUuid) {
+        return accountUuid != null && UUID.class.isAssignableFrom(parameterType);
     }
 
     private static boolean isStringType(Class<?> parameterType) {

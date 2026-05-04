@@ -3,7 +3,10 @@ package com.y271727uy.shopcore.block.entity;
 import com.y271727uy.shopcore.all.ModBlockEntities;
 import com.y271727uy.shopcore.all.ModMenus;
 import com.y271727uy.shopcore.all.ModRecipes;
+import com.y271727uy.shopcore.api.economic.ShopcoreCurrency;
 import com.y271727uy.shopcore.client.menu.SellingBinMenu;
+import com.y271727uy.shopcore.economic.CurrencyDenomination;
+import com.y271727uy.shopcore.economic.CurrencyOperationResult;
 import com.y271727uy.shopcore.recipe.SellingBinRecipe;
 import net.minecraft.MethodsReturnNonnullByDefault;
 import net.minecraft.core.BlockPos;
@@ -31,7 +34,9 @@ import net.minecraftforge.items.ItemStackHandler;
 
 import javax.annotation.Nullable;
 import javax.annotation.ParametersAreNonnullByDefault;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 
 @MethodsReturnNonnullByDefault
 @ParametersAreNonnullByDefault
@@ -47,6 +52,8 @@ public class SellingBinBlockEntity extends BlockEntity implements MenuProvider {
     private float lastLidOpenProgress = 0.0F;
     private float lidOpenProgress = 0.0F;
     private boolean suppressInventorySync = false;
+    @Nullable
+    private UUID boundPlayerUuid;
 
     protected final ContainerData dataAccess = new ContainerData() {
         @Override
@@ -140,11 +147,47 @@ public class SellingBinBlockEntity extends BlockEntity implements MenuProvider {
         }
     }
 
+    public boolean isBound() {
+        return boundPlayerUuid != null;
+    }
+
+    public boolean isBoundTo(Player player) {
+        return player != null && isBoundTo(player.getUUID());
+    }
+
+    public boolean isBoundTo(UUID playerUuid) {
+        return playerUuid != null && playerUuid.equals(boundPlayerUuid);
+    }
+
+    public boolean bindTo(Player player) {
+        UUID playerUuid = player.getUUID();
+        if (boundPlayerUuid != null && !boundPlayerUuid.equals(playerUuid)) {
+            return false;
+        }
+
+        boundPlayerUuid = playerUuid;
+        syncClientState(worldPosition, getBlockState());
+        return true;
+    }
+
+    public boolean unbind(Player player) {
+        if (!isBoundTo(player)) {
+            return false;
+        }
+
+        boundPlayerUuid = null;
+        syncClientState(worldPosition, getBlockState());
+        return true;
+    }
+
     @Override
     protected void saveAdditional(CompoundTag tag) {
         super.saveAdditional(tag);
         tag.put("Inventory", itemHandler.serializeNBT());
         tag.putInt("TicksUntilRun", ticksUntilRun);
+        if (boundPlayerUuid != null) {
+            tag.putUUID("BoundPlayerUuid", boundPlayerUuid);
+        }
     }
 
     @Override
@@ -155,6 +198,9 @@ public class SellingBinBlockEntity extends BlockEntity implements MenuProvider {
         tag.putBoolean("LidTargetOpen", lidTargetOpen);
         tag.putFloat("LidOpenProgress", lidOpenProgress);
         tag.putFloat("LastLidOpenProgress", lastLidOpenProgress);
+        if (boundPlayerUuid != null) {
+            tag.putUUID("BoundPlayerUuid", boundPlayerUuid);
+        }
         return tag;
     }
 
@@ -172,6 +218,7 @@ public class SellingBinBlockEntity extends BlockEntity implements MenuProvider {
         this.lidTargetOpen = tag.getBoolean("LidTargetOpen");
         this.lidOpenProgress = tag.getFloat("LidOpenProgress");
         this.lastLidOpenProgress = tag.getFloat("LastLidOpenProgress");
+        this.boundPlayerUuid = tag.hasUUID("BoundPlayerUuid") ? tag.getUUID("BoundPlayerUuid") : null;
     }
 
     @Override
@@ -192,6 +239,7 @@ public class SellingBinBlockEntity extends BlockEntity implements MenuProvider {
             suppressInventorySync = false;
         }
         ticksUntilRun = tag.contains("TicksUntilRun") ? tag.getInt("TicksUntilRun") : INTERVAL_TICKS;
+        this.boundPlayerUuid = tag.hasUUID("BoundPlayerUuid") ? tag.getUUID("BoundPlayerUuid") : null;
     }
 
     private void readInventoryTag(CompoundTag tag) {
@@ -258,7 +306,7 @@ public class SellingBinBlockEntity extends BlockEntity implements MenuProvider {
 
         // Snapshot inputs first so outputs inserted during this tick won't affect which slots are processed.
         record Planned(int slot, SellingBinRecipe recipe, int sellCount) {}
-        List<Planned> planned = new java.util.ArrayList<>();
+        List<Planned> planned = new ArrayList<>();
 
         for (int slot = 0; slot < slots; slot++) {
             var stack = itemHandler.getStackInSlot(slot);
@@ -292,9 +340,6 @@ public class SellingBinBlockEntity extends BlockEntity implements MenuProvider {
                 continue;
             }
 
-            // consume all chosen inputs
-            itemHandler.extractItem(p.slot(), requiredItems, false);
-
             // produce outputs: each recipe batch triggers one roll (base/max) and totals are accumulated
             int totalOut = 0;
             for (int k = 0; k < toSell; k++) {
@@ -304,6 +349,18 @@ public class SellingBinBlockEntity extends BlockEntity implements MenuProvider {
 
             var out = p.recipe().output.copy();
             out.setCount(totalOut);
+
+            if (boundPlayerUuid != null) {
+                if (!depositBoundRevenue(level, out)) {
+                    continue;
+                }
+
+                itemHandler.extractItem(p.slot(), requiredItems, false);
+                continue;
+            }
+
+            // consume all chosen inputs
+            itemHandler.extractItem(p.slot(), requiredItems, false);
 
             var remaining = out;
             for (int i = 0; i < slots; i++) {
@@ -315,6 +372,37 @@ public class SellingBinBlockEntity extends BlockEntity implements MenuProvider {
                 net.minecraft.world.level.block.Block.popResource(level, worldPosition, remaining);
             }
         }
+    }
+
+    private boolean depositBoundRevenue(Level level, net.minecraft.world.item.ItemStack outputStack) {
+        if (!(level instanceof net.minecraft.server.level.ServerLevel)) {
+            return false;
+        }
+        if (boundPlayerUuid == null) {
+            return false;
+        }
+
+        var denomination = CurrencyDenomination.fromItemStack(outputStack);
+        if (denomination.isEmpty()) {
+            return false;
+        }
+
+        double amount = (double) denomination.get().totalValue(outputStack.getCount());
+        if (amount <= 0D) {
+            return false;
+        }
+
+        CurrencyOperationResult result = ShopcoreCurrency.increase(boundPlayerUuid, amount);
+        if (result.success()) {
+            return true;
+        }
+
+        var onlinePlayer = ((net.minecraft.server.level.ServerLevel) level).getServer().getPlayerList().getPlayer(boundPlayerUuid);
+        if (onlinePlayer != null) {
+            result = ShopcoreCurrency.increase(onlinePlayer, amount);
+        }
+
+        return result.success();
     }
 
     @Override

@@ -8,11 +8,13 @@ import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.inventory.*;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.entity.BlockEntity;
+import net.minecraft.world.level.Level;
 import net.minecraftforge.items.SlotItemHandler;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+@SuppressWarnings("resource")
 public class SellingBinMenu extends AbstractContainerMenu {
     private final SellingBinBlockEntity blockEntity;
     private final ContainerData data;
@@ -22,7 +24,7 @@ public class SellingBinMenu extends AbstractContainerMenu {
     }
 
     private static BlockEntity resolveBlockEntity(Inventory inventory, FriendlyByteBuf buf) {
-        var level = inventory.player.level();
+        Level level = inventory.player.level();
         return level.getBlockEntity(buf.readBlockPos());
     }
 
@@ -109,14 +111,18 @@ public class SellingBinMenu extends AbstractContainerMenu {
     @Override
     public boolean stillValid(@Nonnull Player player) {
         var level = blockEntity.getLevel();
-        return level != null && stillValid(ContainerLevelAccess.create(level, blockEntity.getBlockPos()), player, ModBlock.SELLING_BIN.get());
+        if (level == null || !stillValid(ContainerLevelAccess.create(level, blockEntity.getBlockPos()), player, ModBlock.SELLING_BIN.get())) {
+            return false;
+        }
+
+        return !blockEntity.isBound() || blockEntity.isBoundTo(player);
     }
 
     @Override
     public void removed(@Nonnull Player player) {
         super.removed(player);
-        var playerLevel = player.level();
-        var blockLevel = blockEntity.getLevel();
+        Level playerLevel = player.level();
+        Level blockLevel = blockEntity.getLevel();
         if (blockLevel != null && playerLevel == blockLevel && !blockLevel.isClientSide) {
             blockEntity.setLidTargetOpen(false);
         }

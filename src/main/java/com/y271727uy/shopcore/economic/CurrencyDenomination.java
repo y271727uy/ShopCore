@@ -1,7 +1,12 @@
 package com.y271727uy.shopcore.economic;
 
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.item.ItemStack;
+import net.minecraftforge.registries.ForgeRegistries;
+
 import java.util.Arrays;
 import java.util.List;
+import java.util.Optional;
 
 /**
  * Supported settlement denominations ordered from highest to lowest value.
@@ -33,6 +38,35 @@ public enum CurrencyDenomination {
 
     public String itemPath() {
         return itemPath;
+    }
+
+    @SuppressWarnings("unused")
+    public long totalValue(int amount) {
+        return value * (long) amount;
+    }
+
+    @SuppressWarnings("unused")
+    public static Optional<CurrencyDenomination> fromItemStack(ItemStack stack) {
+        if (stack == null || stack.isEmpty()) {
+            return Optional.empty();
+        }
+
+        return fromItemId(ForgeRegistries.ITEMS.getKey(stack.getItem()));
+    }
+
+    @SuppressWarnings("unused")
+    public static Optional<CurrencyDenomination> fromItemId(ResourceLocation itemId) {
+        if (itemId == null || !"list".equals(itemId.getNamespace())) {
+            return Optional.empty();
+        }
+
+        for (CurrencyDenomination denomination : values()) {
+            if (denomination.itemPath.equals(itemId.getPath())) {
+                return Optional.of(denomination);
+            }
+        }
+
+        return Optional.empty();
     }
 
     public static List<CurrencyDenomination> descendingValues() {
