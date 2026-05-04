@@ -1,3 +1,6 @@
+import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
+import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+
 plugins {
     id 'idea'
     id 'java-library'
@@ -223,22 +226,19 @@ dependencies {
     implementation 'org.jetbrains.kotlin:kotlin-stdlib:1.8.22'
 }
 
-// Uncomment the lines below if you wish to configure mixin. The mixin file should be named modid.mixins.json.
-// mixin {
-//     add sourceSets.main, "${mod_id}.refmap.json"
-//     config "${mod_id}.mixins.json"
-// }
+mixin {
+    add sourceSets.main, "${mod_id}.refmap.json"
+    config "${mod_id}.mixins.json"
+}
 
 dependencies {
-    // 移除Mixin注解处理器依赖
-    // annotationProcessor 'org.spongepowered:mixin:0.8.5:processor'
+    annotationProcessor 'org.spongepowered:mixin:0.8.5:processor'
 }
 
 jar {
-    // 移除Mixin配置
-    // manifest.attributes([
-    //         "MixinConfigs": "${mod_id}.mixins.json"
-    // ])
+    manifest.attributes([
+            "MixinConfigs": "${mod_id}.mixins.json"
+    ])
 }
 
 // This block of code expands all declared replace properties in the specified resource targets.
@@ -287,16 +287,15 @@ tasks.withType(JavaCompile).configureEach {
 }
 
 // Configure Kotlin compile task options (JVM target = 17) and ensure mixed compilation order
-tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).configureEach {
-    kotlinOptions {
-        jvmTarget = '17'
-        freeCompilerArgs += ['-Xjsr305=strict']
+tasks.withType(KotlinCompile).configureEach {
+    compilerOptions {
+        jvmTarget.set(JvmTarget.JVM_17)
     }
 }
 
 // Ensure Java compilation runs after Kotlin so Java sees generated Kotlin classes
 tasks.named('compileJava') {
-    dependsOn tasks.named('compileKotlin')
+    dependsOn 'compileKotlin'
 }
 
 // IDEA no longer automatically downloads sources/javadoc jars for dependencies, so we need to explicitly enable the behavior.

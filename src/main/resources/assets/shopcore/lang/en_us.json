@@ -9,6 +9,8 @@
   "tooltip.shopcore.selling_bin.season_bonus.autumn": "This item is priced up in autumn",
   "tooltip.shopcore.selling_bin.season_bonus.winter": "This item is priced up in winter",
   "tooltip.shopcore.selling_bin.season_bonus.unknown": "This item is priced up this season",
+  "container.shopcore.sdm_shop": "SDM Shop",
+  "gui.shopjei.lock": "Lock",
   "block.shopcore.selling_bin": "Selling Bin",
   "container.shopcore.selling_bin": "Selling Bin",
   "item.shopcore.bank_card": "HSBCMC Card",

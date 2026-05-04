@@ -17,12 +17,14 @@ public final class SellingBinSeasonalPriceRules {
             .thenComparingInt(SeasonalPriceRule::count)
             .thenComparingInt(SeasonalPriceRule::minBonus)
             .thenComparingInt(SeasonalPriceRule::maxBonus);
+    private static boolean defaultsRegistered;
 
     private SellingBinSeasonalPriceRules() {
     }
 
     public static void clear() {
         RULES.clear();
+        defaultsRegistered = false;
     }
 
     public static SeasonalPriceRule register(SeasonalPriceRule rule) {
@@ -40,16 +42,52 @@ public final class SellingBinSeasonalPriceRules {
         return rule("spring", groupName);
     }
 
+    /**
+     * 默认季节规则统一从这里注册。
+     *
+     * <p>新增规则推荐直接在这里继续加：
+     * <pre>
+     * registerDefaults() {
+     *     winterCrop().count(Integer.MAX_VALUE).bonus(1).register();
+     *     spring("logs").count(3).bonus(2).register();
+     *     summer("fish").count(2).bonus(1, 3).register();
+     * }
+     * </pre>
+     */
     public static void registerDefaults() {
-        springCrop().count(Integer.MAX_VALUE).bonus(1).register();
+        if (defaultsRegistered) {
+            return;
+        }
+
+        defaultsRegistered = true;
+        winterCrop().count(Integer.MAX_VALUE).bonus(1).register();
     }
 
-    public static RuleBuilder springCrop() {
-        return spring("crop");
+    /**
+     * 便捷写法：冬季 + crop 组。
+     *
+     * <p>常用注册方式：
+     * <pre>
+     * winterCrop().count(Integer.MAX_VALUE).bonus(1).register();
+     * // 或者
+     * winterCrop(3, 1, 2);
+     * </pre>
+     */
+    public static RuleBuilder winterCrop() {
+        return winter("crop");
     }
 
-    public static SeasonalPriceRule springCrop(int count, int minBonus, int maxBonus) {
-        return springCrop().count(count).bonus(minBonus, maxBonus).register();
+    /**
+     * 直接注册冬季 crop 组规则。
+     *
+     * <p>参数说明：
+     * <ul>
+     *   <li><code>count</code>：最多影响多少个条目，超过组数量会自动按实际数量处理</li>
+     *   <li><code>minBonus</code> / <code>maxBonus</code>：涨价幅度范围</li>
+     * </ul>
+     */
+    public static SeasonalPriceRule winterCrop(int count, int minBonus, int maxBonus) {
+        return winterCrop().count(count).bonus(minBonus, maxBonus).register();
     }
 
     public static RuleBuilder summer(String groupName) {
