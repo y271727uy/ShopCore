@@ -69,6 +69,10 @@ public class SellingBinBlock extends BaseEntityBlock {
     @Override
     public void onRemove(BlockState state, Level level, BlockPos pos, BlockState newState, boolean isMoving) {
         if (!state.is(newState.getBlock()) && !level.isClientSide) {
+            BlockEntity blockEntity = level.getBlockEntity(pos);
+            if (blockEntity instanceof SellingBinBlockEntity sellingBin) {
+                sellingBin.dropInventory(level, pos);
+            }
             level.playSound(null, pos, SoundEvents.WOOD_BREAK, SoundSource.BLOCKS, 1.0F, 1.0F);
         }
 
@@ -85,7 +89,7 @@ public class SellingBinBlock extends BaseEntityBlock {
         BlockEntity be = level.getBlockEntity(pos);
         if (player instanceof net.minecraft.server.level.ServerPlayer serverPlayer && be instanceof SellingBinBlockEntity sellingBin) {
             if (sellingBin.isBound() && !sellingBin.isBoundTo(serverPlayer)) {
-                serverPlayer.displayClientMessage(Component.literal("该出货箱已绑定其他玩家!").withStyle(ChatFormatting.RED), false);
+                serverPlayer.displayClientMessage(Component.translatable("message.shopcore.selling_bin.bound_other").withStyle(ChatFormatting.RED), false);
                 return InteractionResult.CONSUME;
             }
 

@@ -6,6 +6,9 @@
   "mixins": [
     "AbstractShopTabMixin"
   ],
+  "client": [
+    "GuiGraphicsQualityOverlayMixin"
+  ],
   "injectors": {
     "defaultRequire": 1
   }

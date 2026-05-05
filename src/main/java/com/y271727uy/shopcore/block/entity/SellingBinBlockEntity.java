@@ -7,6 +7,7 @@ import com.y271727uy.shopcore.api.economic.ShopcoreCurrency;
 import com.y271727uy.shopcore.client.menu.SellingBinMenu;
 import com.y271727uy.shopcore.economic.CurrencyDenomination;
 import com.y271727uy.shopcore.economic.CurrencyOperationResult;
+import com.y271727uy.shopcore.economic.Tax;
 import com.y271727uy.shopcore.recipe.SellingBinRecipe;
 import net.minecraft.MethodsReturnNonnullByDefault;
 import net.minecraft.core.BlockPos;
@@ -22,7 +23,9 @@ import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.inventory.ContainerData;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraft.world.level.block.state.BlockState;
@@ -54,6 +57,9 @@ public class SellingBinBlockEntity extends BlockEntity implements MenuProvider {
     private boolean suppressInventorySync = false;
     @Nullable
     private UUID boundPlayerUuid;
+    @Nullable
+    private String boundPlayerName;
+    private boolean boundTaxExempt;
 
     protected final ContainerData dataAccess = new ContainerData() {
         @Override
@@ -152,20 +158,41 @@ public class SellingBinBlockEntity extends BlockEntity implements MenuProvider {
     }
 
     public boolean isBoundTo(Player player) {
-        return player != null && isBoundTo(player.getUUID());
+        return isBoundTo(player.getUUID());
     }
 
     public boolean isBoundTo(UUID playerUuid) {
-        return playerUuid != null && playerUuid.equals(boundPlayerUuid);
+        return playerUuid.equals(boundPlayerUuid);
+    }
+
+    public boolean isTaxExempt() {
+        return boundTaxExempt;
+    }
+
+    @Nullable
+    @SuppressWarnings("unused")
+    public UUID getBoundPlayerUuid() {
+        return boundPlayerUuid;
+    }
+
+    @Nullable
+    public String getBoundPlayerName() {
+        return boundPlayerName;
     }
 
     public boolean bindTo(Player player) {
+        return bindTo(player, false);
+    }
+
+    public boolean bindTo(Player player, boolean taxExempt) {
         UUID playerUuid = player.getUUID();
         if (boundPlayerUuid != null && !boundPlayerUuid.equals(playerUuid)) {
             return false;
         }
 
         boundPlayerUuid = playerUuid;
+        boundPlayerName = player.getScoreboardName();
+        boundTaxExempt = taxExempt;
         syncClientState(worldPosition, getBlockState());
         return true;
     }
@@ -176,6 +203,8 @@ public class SellingBinBlockEntity extends BlockEntity implements MenuProvider {
         }
 
         boundPlayerUuid = null;
+        boundPlayerName = null;
+        boundTaxExempt = false;
         syncClientState(worldPosition, getBlockState());
         return true;
     }
@@ -188,6 +217,10 @@ public class SellingBinBlockEntity extends BlockEntity implements MenuProvider {
         if (boundPlayerUuid != null) {
             tag.putUUID("BoundPlayerUuid", boundPlayerUuid);
         }
+        if (boundPlayerName != null) {
+            tag.putString("BoundPlayerName", boundPlayerName);
+        }
+        tag.putBoolean("BoundTaxExempt", boundTaxExempt);
     }
 
     @Override
@@ -201,6 +234,10 @@ public class SellingBinBlockEntity extends BlockEntity implements MenuProvider {
         if (boundPlayerUuid != null) {
             tag.putUUID("BoundPlayerUuid", boundPlayerUuid);
         }
+        if (boundPlayerName != null) {
+            tag.putString("BoundPlayerName", boundPlayerName);
+        }
+        tag.putBoolean("BoundTaxExempt", boundTaxExempt);
         return tag;
     }
 
@@ -219,6 +256,8 @@ public class SellingBinBlockEntity extends BlockEntity implements MenuProvider {
         this.lidOpenProgress = tag.getFloat("LidOpenProgress");
         this.lastLidOpenProgress = tag.getFloat("LastLidOpenProgress");
         this.boundPlayerUuid = tag.hasUUID("BoundPlayerUuid") ? tag.getUUID("BoundPlayerUuid") : null;
+        this.boundPlayerName = tag.contains("BoundPlayerName") ? tag.getString("BoundPlayerName") : null;
+        this.boundTaxExempt = tag.getBoolean("BoundTaxExempt");
     }
 
     @Override
@@ -240,6 +279,8 @@ public class SellingBinBlockEntity extends BlockEntity implements MenuProvider {
         }
         ticksUntilRun = tag.contains("TicksUntilRun") ? tag.getInt("TicksUntilRun") : INTERVAL_TICKS;
         this.boundPlayerUuid = tag.hasUUID("BoundPlayerUuid") ? tag.getUUID("BoundPlayerUuid") : null;
+        this.boundPlayerName = tag.contains("BoundPlayerName") ? tag.getString("BoundPlayerName") : null;
+        this.boundTaxExempt = tag.getBoolean("BoundTaxExempt");
     }
 
     private void readInventoryTag(CompoundTag tag) {
@@ -261,6 +302,28 @@ public class SellingBinBlockEntity extends BlockEntity implements MenuProvider {
         } else {
             itemHandler.deserializeNBT(inv);
         }
+    }
+
+    public void dropInventory(Level level, BlockPos pos) {
+        if (level.isClientSide) {
+            return;
+        }
+
+        suppressInventorySync = true;
+        try {
+            for (int i = 0; i < itemHandler.getSlots(); i++) {
+                ItemStack stack = itemHandler.getStackInSlot(i);
+                if (stack.isEmpty()) {
+                    continue;
+                }
+
+                Block.popResource(level, pos, stack.copy());
+                itemHandler.setStackInSlot(i, ItemStack.EMPTY);
+            }
+        } finally {
+            suppressInventorySync = false;
+        }
+        setChanged();
     }
 
     @SuppressWarnings("unused")
@@ -374,8 +437,8 @@ public class SellingBinBlockEntity extends BlockEntity implements MenuProvider {
         }
     }
 
-    private boolean depositBoundRevenue(Level level, net.minecraft.world.item.ItemStack outputStack) {
-        if (!(level instanceof net.minecraft.server.level.ServerLevel)) {
+    private boolean depositBoundRevenue(Level level, ItemStack outputStack) {
+        if (!(level instanceof net.minecraft.server.level.ServerLevel serverLevel)) {
             return false;
         }
         if (boundPlayerUuid == null) {
@@ -387,22 +450,25 @@ public class SellingBinBlockEntity extends BlockEntity implements MenuProvider {
             return false;
         }
 
-        double amount = (double) denomination.get().totalValue(outputStack.getCount());
-        if (amount <= 0D) {
+        long grossAmount = denomination.get().totalValue(outputStack.getCount());
+        if (grossAmount <= 0L) {
             return false;
         }
 
-        CurrencyOperationResult result = ShopcoreCurrency.increase(boundPlayerUuid, amount);
-        if (result.success()) {
-            return true;
+        Tax.TaxResult taxResult = Tax.calculate(grossAmount, boundTaxExempt);
+        long netAmount = taxResult.netAmount();
+        if (netAmount <= 0L) {
+            return false;
         }
 
-        var onlinePlayer = ((net.minecraft.server.level.ServerLevel) level).getServer().getPlayerList().getPlayer(boundPlayerUuid);
-        if (onlinePlayer != null) {
-            result = ShopcoreCurrency.increase(onlinePlayer, amount);
-        }
+        Player onlinePlayer = serverLevel.getServer().getPlayerList().getPlayer(boundPlayerUuid);
+        CurrencyOperationResult result = onlinePlayer != null
+                ? ShopcoreCurrency.increase(onlinePlayer, (double) netAmount)
+                : ShopcoreCurrency.increase(boundPlayerUuid, (double) netAmount);
 
-        return result.success();
+        if (result.success()) return true;
+
+        return onlinePlayer != null && ShopcoreCurrency.increase(boundPlayerUuid, (double) netAmount).success();
     }
 
     @Override
