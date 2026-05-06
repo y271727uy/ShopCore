@@ -4,11 +4,6 @@ import com.y271727uy.shopcore.gameplay.quality.QualityNbt
 import net.minecraft.client.gui.GuiGraphics
 import net.minecraft.world.item.ItemStack
 
-/**
- * 根据 ItemStack 的 quality NBT，实时叠加对应星标贴图。
- *
- * 这里不做任何缓存：每次渲染都直接读当前 stack 的 NBT。
- */
 object QualityOverlayRenderer {
     @JvmStatic
     fun render(guiGraphics: GuiGraphics, stack: ItemStack, x: Int, y: Int) {

@@ -1,24 +1,39 @@
+@file:Suppress("unused")
+
 package com.y271727uy.shopcore.gameplay.quality
 
 import net.minecraft.nbt.CompoundTag
 import net.minecraft.world.item.ItemStack
+import net.minecraft.util.RandomSource
 
 /**
  * quality NBT 读写与校验入口。
  */
 object QualityNbt {
-    const val QUALITY_KEY: String = "quality"
+    const val LEGACY_QUALITY_KEY: String = "quality"
+
+    private val QUALITY_ORDER: List<Quality> = Quality.values().sortedByDescending { it.id }.toList()
 
     @JvmStatic
     fun parse(value: Int): Quality? = Quality.fromId(value)
 
     @JvmStatic
     fun parse(tag: CompoundTag?): Quality? {
-        if (tag == null || !tag.contains(QUALITY_KEY)) {
+        if (tag == null) {
             return null
         }
 
-        return parse(tag.getInt(QUALITY_KEY))
+        for (quality in QUALITY_ORDER) {
+            if (hasQualityFlag(tag, quality.nbtKey)) {
+                return quality
+            }
+        }
+
+        if (!tag.contains(LEGACY_QUALITY_KEY)) {
+            return null
+        }
+
+        return parse(tag.getInt(LEGACY_QUALITY_KEY))
     }
 
     @JvmStatic
@@ -31,8 +46,23 @@ object QualityNbt {
     fun hasValidQuality(stack: ItemStack): Boolean = get(stack) != null
 
     @JvmStatic
+    fun getMinPriceBonus(stack: ItemStack): Int = get(stack)?.priceBonusRange?.first ?: 0
+
+    @JvmStatic
+    fun getMaxPriceBonus(stack: ItemStack): Int = get(stack)?.priceBonusRange?.last ?: 0
+
+    @JvmStatic
+    fun rollPriceBonus(stack: ItemStack, random: RandomSource): Int {
+        val quality = get(stack) ?: return 0
+        val min = quality.priceBonusRange.first
+        val max = quality.priceBonusRange.last
+        return if (max <= min) min else min + random.nextInt(max - min + 1)
+    }
+
+    @JvmStatic
     fun write(tag: CompoundTag, quality: Quality): CompoundTag {
-        tag.putInt(QUALITY_KEY, quality.id)
+        clear(tag)
+        tag.putBoolean(quality.nbtKey, true)
         return tag
     }
 
@@ -45,7 +75,23 @@ object QualityNbt {
     @JvmStatic
     fun clear(stack: ItemStack) {
         val tag = stack.tag ?: return
-        tag.remove(QUALITY_KEY)
+        clear(tag)
+    }
+
+    @JvmStatic
+    fun clear(tag: CompoundTag) {
+        for (quality in Quality.values()) {
+            tag.remove(quality.nbtKey)
+        }
+        tag.remove(LEGACY_QUALITY_KEY)
+    }
+
+    private fun hasQualityFlag(tag: CompoundTag, key: String): Boolean {
+        if (!tag.contains(key)) {
+            return false
+        }
+
+        return tag.getInt(key) > 0 || tag.getBoolean(key)
     }
 }
 

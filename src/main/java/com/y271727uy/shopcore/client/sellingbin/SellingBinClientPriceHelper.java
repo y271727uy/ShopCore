@@ -3,6 +3,7 @@ package com.y271727uy.shopcore.client.sellingbin;
 import com.y271727uy.shopcore.all.ModRecipes;
 import com.y271727uy.shopcore.integration.sereneseasons.SereneSeasonsCompat;
 import com.y271727uy.shopcore.recipe.SellingBinRecipe;
+import com.y271727uy.shopcore.gameplay.quality.QualityNbt;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.item.ItemStack;
@@ -50,7 +51,7 @@ public final class SellingBinClientPriceHelper {
     }
 
     public static ItemStack getDisplayOutput(SellingBinRecipe recipe, ItemStack stack) {
-        return recipe.getDisplayOutput(getPriceBonus(recipe, stack));
+        return recipe.getDisplayOutput(getPriceBonus(recipe, stack) + getMaxQualityBonus(stack));
     }
 
     public static ItemStack getDisplayInput(SellingBinRecipe recipe, ItemStack stack) {
@@ -70,9 +71,9 @@ public final class SellingBinClientPriceHelper {
     }
 
     public static String getPriceText(SellingBinRecipe recipe, ItemStack stack) {
-        int priceBonus = getPriceBonus(recipe, stack);
-        int min = recipe.getMinOutputCount(priceBonus);
-        int max = recipe.getMaxOutputCount(priceBonus);
+        int marketBonus = getPriceBonus(recipe, stack);
+        int min = recipe.getMinOutputCount(marketBonus + getMinQualityBonus(stack));
+        int max = recipe.getMaxOutputCount(marketBonus + getMaxQualityBonus(stack));
 
         if (min == max) {
             return Integer.toString(min);
@@ -100,7 +101,7 @@ public final class SellingBinClientPriceHelper {
     private static String getSeasonalBonusTranslationKey() {
         Minecraft mc = Minecraft.getInstance();
         String seasonId = SereneSeasonsCompat.getCurrentSeasonId(mc.level).orElse("unknown");
-        String normalized = seasonId == null ? "unknown" : seasonId.trim().toLowerCase(Locale.ROOT);
+        String normalized = seasonId.trim().toLowerCase(Locale.ROOT);
         return switch (normalized) {
             case "spring" -> "tooltip.shopcore.selling_bin.season_bonus.spring";
             case "summer" -> "tooltip.shopcore.selling_bin.season_bonus.summer";
@@ -108,6 +109,14 @@ public final class SellingBinClientPriceHelper {
             case "winter" -> "tooltip.shopcore.selling_bin.season_bonus.winter";
             default -> "tooltip.shopcore.selling_bin.season_bonus.unknown";
         };
+    }
+
+    private static int getMinQualityBonus(ItemStack stack) {
+        return QualityNbt.getMinPriceBonus(stack);
+    }
+
+    private static int getMaxQualityBonus(ItemStack stack) {
+        return QualityNbt.getMaxPriceBonus(stack);
     }
 
 }
