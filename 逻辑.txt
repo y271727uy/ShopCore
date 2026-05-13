@@ -1,0 +1,418 @@
+TreeController "tree_stump" — 完整 Vibe 文档
+
+非常重要：这个是参考逻辑，而原项目在根目录下kubejs文件夹内，可以读取。 我要在shopcore使用Kotlin实现整体项目
+
+其他的话：原项目是使用kubejs编写，适用面比较窄 我想的是不会禁止所有的放置树苗行为，而是只针对白名单树苗放置在树坑上。
+当白名单树苗放在树坑上，该树苗会被取消原版的生长逻辑我们的自定义逻辑会替换掉 请注意不要禁止所有树苗的放置。
+
+一言概括
+— 树桩是大脑，地面方块是能量槽，树的命运靠三条数值决定：肥力、含水、分枝。
+
+核心概念（vibe）
+- 树桩（tree_stump）是单点控制器，整棵树按相对坐标构成，放置/维护/销毁都围绕它进行。
+- 周围土块与水是资源：高等级肥料会被降级以补充 `fertilize`，水或 waterlogged 方块会被转换为 `water`（需要 `fertilize` 才能吸收）。
+- `branches` 表示已形成可采收的分支，既是产量来源，也是降低短期生长概率的代价（采太多会降低新果概率）。
+
+三个关键数值（直观说明）
+- `fertilize`：土壤能量，上限 25，越高代表土壤越肥沃。
+- `water`：含水值，上限 50，代表土壤湿度，有水才能把肥力转化成可用的成长推动力。
+- `branches`：可采分支数，越高代表已经成熟的可采分支越多，但会降低下一步生长概率（代表资源分配与自然消耗）。
+
+行为流程（一句话版）
+- 周期性（例如每 20 秒）观察周围资源，自动吞取肥料并转化水分；随机抽一片叶子按“抽奖公式”决定是否进入生长/成熟（触发骨粉或改变 blockstate），并扣减/调整三个数值。玩家可用药水浇水或斧子采枝直接介入状态。
+
+伪代码（vibe，便于直接阅读与移植）
+```
+TreeController "tree_stump" {
+  state fertilize = 0
+  state water     = 0
+  state branches  = 0
+  config tree_shapes, tree_datas
+
+  onPlace(seed, pos) {
+    if pos.below != "tree_compost" { returnItem(seed); stop }
+    buildTree(shape = tree_datas[seed].shape, offset = random(-1..1))
+    replace(pos, "tree_stump")
+    saveNBT(tree_type=seed, tree_shape=shape, dy=offset)
+  }
+
+  tick() {
+    bestFert = scan3x3BelowForBestFertilizer()
+    if bestFert && fertilize < 25 {
+      fertilize += 10
+      downgradeBlock(bestFert)
+      spawnSmoke(bestFert.pos)
+    }
+    if hasNearbyWater() && fertilize >= 1 {
+      fertilize -= 1
+      water = min(50, water + 5)
+    }
+
+    leaf = randomLeafFromShape()
+    chance = min(25,fertilize) + min(25,water) + (25 - branches)
+    if random(1..75) < chance {
+      spawnHappyParticles(leaf.pos)
+      if leaf.state == DEFAULT then set leaf.state = GROWING
+      else applyBoneMealTo(leaf)
+      maybeDecrease(fertilize, prob=0.4)
+      maybeDecrease(water, prob=0.4)
+      maybeIncrease(branches, prob=0.125, cap=25)
+    } else {
+      if leaf.state != RIPE then set leaf.state = DEFAULT
+    }
+
+    persistNBT(fertilize, water, branches)
+  }
+
+  onRightClick(player,item) {
+    if item == "potion" {
+      water = min(50, water + 10)
+      fertilize = max(0, fertilize - 1)
+      consume(item); give(player,"glass_bottle")
+    }
+    if item.isAxe() and branches > 0 {
+      give(player, tree_datas[tree_type].log, rand(3..6))
+      branches = max(0, branches - 3)
+    }
+  }
+
+  onBreak() { clearAllRelativeBlocksIfMatch() }
+}
+```
+
+可调项（直接列出，便于调参）
+- tickInterval = 20s（方块实体 server tick）
+- fertilizeMax = 25
+- waterMax = 50
+- fertilizerGainPerBlock = 10
+- waterGainPerTickWhenIrrigated = 5
+- branchesGainProb = 0.125
+- growthRollRange = 1..75
+
+示例场景（玩家行为）
+- 场景 A：玩家在树坑周围放了 `farmersdelight:organic_compost`，树桩每次 tick 会把肥力 +10，肥料方块被降级；短时间内 `fertilize` 达到高值，树频繁触发生长抽奖。
+- 场景 B：玩家不维护，周围无肥料也无水，`fertilize` 和 `water` 几乎为 0，树只会偶尔靠随机骨粉调用或手动骨粉短促成熟，长期不结果。
+
+- NBT 存储（详细说明）
+  - 存储位置：树桩的方块实体 NBT（KubeJS 中为 `block.entity.persistentData`），随世界保存与加载。
+  - 建议键和值类型：
+    - `tree_type` : String（例："manors_bounty:apple_seed"）
+    - `tree_shape`: Int（对应 `tree_shapes` 索引）
+    - `dy`        : Int（竖直偏移）
+    - `fertilize` : Int（当前肥力值，0..25）
+    - `water`     : Int（当前含水值，0..50）
+    - `branches`  : Int（当前可采分支数）
+    - 可选：`last_tick` : Long （上次 tick 时间，用于节流/恢复）
+  - Java 写入示例（BlockEntity#save / write）：
+    - `compound.putString("tree_type", treeType);`
+    - `compound.putInt("tree_shape", treeShape);`
+    - `compound.putInt("dy", dy);`
+    - `compound.putInt("fertilize", fertilize);`
+    - `compound.putInt("water", water);`
+    - `compound.putInt("branches", branches);`
+  - Java 读取示例（BlockEntity#load / read）：
+    - `treeType = compound.getString("tree_type");`
+    - `treeShape = compound.getInt("tree_shape");`
+    - `dy = compound.getInt("dy");`
+    - `fertilize = compound.getInt("fertilize");`
+    - `water = compound.getInt("water");`
+    - `branches = compound.getInt("branches");`
+  - 同步与客户端显示：如果客户端需要显示 `fertilize/water/branches`，在服务端更新后调用 `markDirty()` 并发送区块/方块更新；或在 `getUpdatePacket`/`getUpdateTag` 中包含需要同步的字段。
+  - 向后兼容与迁移：为防止缺少字段导致问题，读取时对缺失键使用默认值（`getInt` 对于不存在返回 0，`getString` 返回空字符串），并在加载后验证 `tree_shape` 与 `tree_type` 的有效性，必要时清理或重建结构。
+
+白名单（脚本中注册的 `tree_datas` 列表）
+- 下面这些资源 id 已在脚本中列为可种植的果树（会自动加入 `kubejs:fruit_trees` 标签）：
+  - manors_bounty:pear_seed
+  - manors_bounty:lemon_seed
+  - manors_bounty:avocado_seed
+  - manors_bounty:peach_seed
+  - manors_bounty:apple_seed
+  - manors_bounty:orange_seed
+  - manors_bounty:olive_fruit_seed
+  - manors_bounty:mango_seed
+  - manors_bounty:starfruit_seed
+  - manors_bounty:cherries_seed
+  - manors_bounty:durian_seed
+  - manors_bounty:kiwifruit_seed
+  - manors_bounty:hawthorn_seed
+  - manors_bounty:pomegranate_sapling
+
+  - 说明：放置事件会检查方块是否有标签 `kubejs:fruit_trees`（脚本在启动时把 `tree_datas` 的键加入该标签），只有在白名单中的物品才会被当作果树种下。
+ 
+肥料降级
+被识别为“肥料/土壤”并计入优先级的有：
+
+farmersdelight:organic_compost（等级 5）
+farmersdelight:rich_soil（等级 4）
+minecraft:podzol（等级 3）
+minecraft:dirt（等级 2）
+minecraft:grass_block（也视为等级 2）
+降级链（脚本将高等级方块降为下一阶）：
+
+farmersdelight:organic_compost → farmersdelight:rich_soil
+farmersdelight:rich_soil → minecraft:podzol
+minecraft:podzol → minecraft:dirt
+minecraft:dirt → minecraft:coarse_dirt
+minecraft:grass_block → minecraft:coarse_dirt
+触发时机与方式：
+
+在 stumpTick 的 3x3 范围内寻找最高等级的肥料方块（优先级由 fertilizer_lvls 定义）；若找到且树的 fertilize < 25，脚本会 fertilize += 10，并把该方块替换为其“下一阶”（即上面列出的降级目标）。
+实现细节：代码用 fertilizer_lvls 找出等级，然后用 fertilizer_lvls[max_fertilize-1]（数字→方块名映射）来做替换；脚本内另有 fertilizer_blocks 映射，含同样的降级关系（作为映射参考/冗余）
+
+移植提示（写给要用 Java/Forge/Fabric 重写的人）
+- 不需要直接依赖目标模组源码：只需按注册名解析方块（`Registry.BLOCK.get(new ResourceLocation("mod:block"))` 或等价 API）。
+- 用 `BlockEntity` 的 `tick` 实现 `stumpTick`，把 `fertilize/water/branches` 保存到 NBT（`CompoundNBT`/`CompoundTag`）。
+- 若要触发模组的成熟逻辑，使用骨粉接口（`BoneMealItem.applyBonemeal(...)`）并传入一个 server-side fake player（或 `ServerPlayerEntity`），注意不同 MC 版本签名不同。
+- world.setBlockState(...) 用于放置叶/木并设置正确的 `BlockState` property（例如 `blockState.with(PROPERTY, value)`），客户端同步与 `markDirty()`/`sendBlockUpdated()` 必需。
+
+常见坑
+- 若目标模组没有使用标准骨粉回调，applyBonemeal 可能无法完全模拟其内部逻辑。
+- 在高并发/大量树时，tick 频率和扫描范围会造成性能负担，需要节流或批处理（例如分散 tick 触发或延长 tick 间隔）。
+
+快速清单（想移植时先确认）
+1) 确定 MC/Forge/Fabric 版本并找到骨粉 apply 方法签名。
+2) 定义 `tree_stump` Block + BlockEntity，存储必要 NBT。
+3) 把 `tree_shapes`/`tree_datas` 做成数据文件或常量类。
+4) 实现放置/销毁/右键交互与 tick 逻辑。
+5) 调试肥料降级与水源转换，观察粒子与同步。
+
+----
+
+此文件已扩展为更完整的开发笔记与参数清单，方便你直接拿去实现或调参。
+
+
+=== KubeJS 实现补全（把逻辑.txt 的抽象行为补为 KubeJS 可执行/详细说明） ===
+
+说明：下面内容补全的是 kubejs 脚本中必须包含的具体实现细节、边界条件、事件参数与调试命令（不是 Kotlin 实现），便于你直接把这些补全回 `kubejs` 文件夹内的脚本或作为移植时的明确规范。
+
+1) 常量与配置（脚本开头）
+- DEBUG = false
+- TICK_INTERVAL_TICKS = 20 * 20  // 20s
+- FERTILIZE_MAX = 25
+- WATER_MAX = 50
+- FERTILIZER_GAIN = 10
+- WATER_GAIN = 5
+- BRANCHES_GAIN_PROB = 0.125
+- GROWTH_ROLL_MAX = 75
+
+2) 数据格式（建议把 kubejs 中现有 tree_shapes、tree_datas、fertilizer 映射以 JSON / JS 对象的形式保留并在启动时加载）
+- tree_shapes[] 每项包含：
+  - leave_cnt: int
+  - leave_relative_pos: [[dx,dy,dz], ...]
+  - log_relative_pos: [[dx,dy,dz], ...]
+- tree_datas map keyed by seed id，每项包含：
+  - leave: string (block id)
+  - log: string (block id)
+  - tree_type: int (index into tree_shapes)
+  - growing_state: string|int (按目标 leaf block 的 state 值)
+  - default_state: string|int
+  - ripe_state: string|int
+  - (可选) drop_log_count: [min,max]
+- fertilizer_lvls: { blockId: levelInt, ... } 同时保留 level->blockId 映射
+- fertilizer_blocks: { blockId: nextBlockId }
+
+3) 放置事件（BlockEvents.placed）详细实现要点
+- 只在服务端执行：if (event.level.isClientSide) return;
+- 仅处理被放置的 item/block 在 `kubejs:fruit_trees` tag（items & blocks）时才进入逻辑
+- 若 pos.down().id != 'kubejs:tree_compost'：
+  - 退还物品：event.block.popItem(Item.of(event.block.id)) // 或者 player.give
+  - 将原始放置位置设为空（block.set('minecraft:air'))
+  - return
+- 随机 dy = randomInt(-1,1)
+- tree_data = tree_datas[seedId]; tree_shape = tree_shapes[tree_data.tree_type]
+- 对 leave_relative_pos 与 log_relative_pos：仅当目标位置为空 air 时才放置对应方块（避免覆盖）
+  - 放置 leaf 时使用初始 blockstate = tree_data.default_state
+  - 放置 log 时使用对应 log block
+- 将放置的方块替换为 'kubejs:tree_stump'
+- 将下方替换为 'minecraft:rooted_dirt'
+- 在 block.entity.persistentData 写入：tree_type, tree_shape, dy, fertilize=0, water=0, branches=0
+- 播放声音或粒子作为反馈
+
+示例片段（伪代码）：
+BlockEvents.placed(event => {
+  if (event.level.isClientSide) return;
+  if (!event.block.hasTag('kubejs:fruit_trees')) return;
+
+  if (event.block.getDown().id != 'kubejs:tree_compost') {
+    event.block.popItem(Item.of(event.block.id));
+    event.block.set('minecraft:air');
+    return;
+  }
+
+  const dy = randomInt(-1,1);
+  const data = tree_datas[event.block.id];
+  const shape = tree_shapes[data.tree_type];
+  // place leaves/logs only on air
+  for (let posRel of shape.leave_relative_pos) {
+    const p = event.block.pos.offset(posRel[0], posRel[1] + dy, posRel[2]);
+    if (event.level.getBlock(p).id === 'minecraft:air') {
+      event.level.setBlock(p, data.leave, { 'blockstate': data.default_state + '' });
+    }
+  }
+  // logs
+  for (let posRel of shape.log_relative_pos) { ... }
+
+  event.block.set('kubejs:tree_stump');
+  event.block.getDown().set('minecraft:rooted_dirt');
+  const pd = event.block.entity.persistentData;
+  pd.putString('tree_type', event.block.id);
+  pd.putInt('tree_shape', data.tree_type);
+  pd.putInt('dy', dy);
+});
+
+4) 破坏事件（BlockEvents.broken 或 Block#onBroken）细化
+- 仅在服务端执行
+- 读取 persistentData，若 tree_type/tree_shape/dy 缺失或对应 data 不存在则不做处理
+- 遍历 tree_shape（leave & log 列表），对每个相对位置：
+  - 如果 world.getBlock(targetPos).id == expectedId，则 level.destroyBlock(targetPos, false)
+- 在开始前做保护检查（若有 claim 系统）
+
+示例片段：
+BlockEvents.broken('kubejs:tree_stump', event => {
+  const pd = event.block.entity.persistentData;
+  const tree_type = pd.getString('tree_type');
+  const dy = pd.getInt('dy');
+  const data = tree_datas[tree_type];
+  if (!data) return;
+  const shape = tree_shapes[pd.getInt('tree_shape')];
+  for (let posRel of shape.leave_relative_pos) {
+    const p = event.block.pos.offset(posRel[0], posRel[1] + dy, posRel[2]);
+    if (event.level.getBlock(p).id === data.leave) {
+      event.level.destroyBlock(p, false);
+    }
+  }
+  // logs same
+});
+
+5) 右键交互（BlockEvents.rightClicked）细化
+- 只在主手触发并在服务端处理
+- 泼水（potion）:
+  - item.shrink(1); pd.water = min(WATER_MAX, pd.water + 10); pd.fertilize = max(0, pd.fertilize - 1); player.give('minecraft:glass_bottle'); player.swing()
+- 斧子采枝:
+  - if item.hasTag('forge:tools/axes') and pd.branches > 0:
+      give player data.log with count randomInt(3,6); pd.branches = max(0, pd.branches - 3); player.swing()
+
+示例片段：
+BlockEvents.rightClicked('kubejs:tree_stump', event => {
+  const pd = event.block.entity.persistentData;
+  if (event.item === 'minecraft:potion') {
+    let water = pd.getInt('water'); let fertilize = pd.getInt('fertilize');
+    water = Math.min(WATER_MAX, water + 10);
+    fertilize = Math.max(0, fertilize - 1);
+    pd.putInt('water', water); pd.putInt('fertilize', fertilize);
+    event.item.shrink(1);
+    event.player.give(Item.of('minecraft:glass_bottle'));
+    event.player.swing();
+  }
+  if (event.item.hasTag('forge:tools/axes')) {
+    let branches = pd.getInt('branches'); if (branches <= 0) return;
+    event.player.give(Item.of(tree_datas[pd.getString('tree_type')].log).withCount(randomInt(3,6)));
+    pd.putInt('branches', Math.max(0, branches - 3));
+    event.player.swing();
+  }
+});
+
+6) stumpTick (核心) — 完整顺序与细节
+- 调度：
+  - 使用 entityInfo.serverTick(firstDelayTicks, intervalTicks, callback) 或在 tick 回调内部做 if ((level.gameTime + pos.hashCode()) % TICK_INTERVAL_TICKS != 0) return; 做错峰
+- 步骤：
+  1. 读取 NBT: fertilize, water, branches, tree_type, tree_shape, dy
+  2. 验证 tree_data 与 tree_shape 存在（不存在 return）
+  3. 扫描下方 3x3（y = pos.y - 1），寻找 fertilizer_lvls 中最大等级方块（记录 pos & id）
+  4. 若 found && fertilize < FERTILIZE_MAX:
+     - fertilize = Math.min(FERTILIZE_MAX, fertilize + FERTILIZER_GAIN)
+     - spawnParticles('minecraft:smoke', ...) at that block
+     - 替换该 block 为 fertilizer_blocks[maxBlockId]
+  5. 检查附近水源（下方 block is 'minecraft:water' 或 block.properties.waterlogged == 'true'）并且 fertilize >= 1 && water < 25:
+     - fertilize = Math.max(0, fertilize - 1)
+     - water = Math.min(WATER_MAX, water + WATER_GAIN)
+  6. 随机抽一片叶（从 tree_shape.leave_relative_pos）：
+     - rndPos = pos + rel + [0, dy, 0]
+     - if level.getBlock(rndPos).id !== data.leave return（对该叶无效）
+     - chance = Math.min(25, fertilize) + Math.min(25, water) + (25 - branches)
+     - if randomInt(1, GROWTH_ROLL_MAX) < chance: 成长分支
+         - spawnParticles('minecraft:happy_villager',...) at rndPos
+         - if leaf.blockState == data.default_state:
+             - set to data.growing_state
+           else:
+             - 调用 BoneMealItem.applyBonemeal 通过 FakePlayer（见下）
+         - 以概率 0.4 各扣 fertilize/water
+         - 以概率 BRANCHES_GAIN_PROB 增加 branches（上限 25）
+       else:
+         - 若 leaf.state != ripe_state 则 set default_state
+  7. 写回 NBT 并 markDirty / send block update
+
+示例片段（伪代码）：
+global.stumpTick = function(entity) {
+  const level = entity.level; const pos = entity.getBlockPos(); const pd = entity.persistentData;
+  if (!level || level.isClientSide) return;
+  // 错峰
+  if ((level.getGameTime() + pos.hashCode()) % TICK_INTERVAL_TICKS !== 0) return;
+  let fertilize = pd.getInt('fertilize'); let water = pd.getInt('water'); let branches = pd.getInt('branches');
+  const data = tree_datas[pd.getString('tree_type')]; const shape = tree_shapes[pd.getInt('tree_shape')]; if (!data || !shape) return;
+  // scan fertilizer
+  let maxLevel = -1; let maxBlock = null;
+  for (dx=-1; dx<=1; dx++) for (dz=-1; dz<=1; dz++) {
+    const b = level.getBlock(pos.getX()+dx, pos.getY()-1, pos.getZ()+dz);
+    const lvl = fertilizer_lvls[b.id]; if (lvl != null && lvl > maxLevel) { maxLevel = lvl; maxBlock = b; }
+    // watercheck
+    if ((b.id === 'minecraft:water' || b.properties?.waterlogged === 'true') && water < 25 && fertilize >= 1) {
+      fertilize = Math.max(0, fertilize - 1); water = Math.min(WATER_MAX, water + WATER_GAIN);
+    }
+  }
+  if (maxLevel !== -1 && fertilize < FERTILIZE_MAX) {
+    fertilize = Math.min(FERTILIZE_MAX, fertilize + FERTILIZER_GAIN);
+    level.spawnParticles('minecraft:smoke', false, maxBlock.getX()+0.5, maxBlock.getY()+0.5, maxBlock.getZ()+0.5, 0.6,0.6,0.6,30,0.01);
+    maxBlock.set(fertilizer_blocks[maxBlock.id]);
+  }
+  // random leaf and growth roll (see earlier formulas)
+  pd.putInt('fertilize', fertilize); pd.putInt('water', water); pd.putInt('branches', branches);
+}
+
+7) BoneMeal 调用与 FakePlayer 兼容策略（kubejs）
+- 优先尝试标准：Java.loadClass('net.minecraft.world.item.BoneMealItem').applyBonemeal(stack, level, pos, fakePlayer)
+- FakePlayer 选择：
+  - 优先使用模组特定 FakePlayer（若可用且兼容，如 ANFakePlayer.getPlayer(level)），因为有些模组内部逻辑依赖特定 fake player 实现（kubejs 示例使用 ANFakePlayer）
+  - 如果未安装特定模组或不可用，退回到 Forge/vanilla 的 FakePlayer（FakePlayerFactory）
+- 回退策略：如果调用无效（没有产生效果），则直接 set leaf state 为 ripe_state（避免长时间不可结果）
+
+8) BlockState 操作细节（leaf）
+- 因为 tree_datas 中 leaf 的状态在 kubejs 是数值字符串（例如 default_state/growing_state/ripe_state），需要明确如何映射到目标 block 的 BlockState：
+  - 在脚本中可直接依赖目标模组的 blockstate 字符串表示（kubejs 的 set(blockId, {"blockstate": "N"}) 在你的环境已可用），保持这种做法即可
+  - 若移植到 Kotlin/Forge：需要事先解析为 BlockState 对象并保存在内存
+- 关键：放置/变更时只更改叶子的生长相关 state，不要覆盖其余重要属性（waterlogged 等）
+
+9) 背包与物品处理边界
+- 给玩家物品要考虑背包满：优先 player.give，如果失败则 world.drop(item) 或 event.level.addFreshEntity(new ItemEntity(...))
+- 消耗物品用 event.item.shrink(1) 或 player.getMainHandItem().shrink(1)
+
+10) 权限/保护检查
+- 在 broken/clear 操作前检查可能的保护/claim（示例：player.forgePersistentData.destroyRespectsClaim），如果不允许则取消操作并提示玩家
+
+11) 并发/Chunk/容错
+- 在 tick 开始检测 chunk 是否加载，level 与实体有效
+- 对 NBT 缺失或 data 不存在使用容错返回并写日志
+
+12) 调试命令（建议写入 startup_scripts 或 server_scripts）
+- /stump_dump x y z — 输出该 pos 的 persistentData，便于检查 fertilize/water/branches
+- /stump_forcetick x y z — 强制触发 stumpTick（仅 OP 可用）
+- /stump_rebuild x y z — 按 stored tree_type/tree_shape/dy 重建整棵树（用于修复）
+
+13) 测试用例（按步骤验证）
+- 放置验证：非 compost 上放置 seed -> 阻止； compost 上放置 -> 构建树并写入 NBT
+- 肥料降级验证：放 compost，tick 后 fertilize 上升且最高等级肥料降级
+- 吸水验证：放置水或 waterlogged，tick 后 water 上升
+- 成长验证：设置高 fertilize/water，观察 leaf 从 default->growing->成熟（骨粉）以及 branches 增长
+- 采枝验证：branches>0 时右键斧子给 player log 且 branches 减少
+- 破坏验证：破坏 stump 清除匹配 leaf/log、不误删非匹配方块
+
+14) 数据迁移
+- 若更改 tree_datas 或 tree_shapes 结构，提供 /stump_rebuild 或脚本迁移工具
+- 读取时保留对旧 key 的兼容（legacy 名称），必要时自动迁移
+
+15) 其他建议
+- 将 tree_shapes/tree_datas/fertilizer 表保持为资源（JSON）并在 startup 解析，便于 modpack 制作者调整
+- DEBUG 默认为 false，线上关闭日志；开发时可打开以查看更多信息
+- 若在移植到 Kotlin 后遇到某些模组的 bone-meal 无效，先回退到直接修改 blockstate 的策略
+
+=== 结束补全 ===

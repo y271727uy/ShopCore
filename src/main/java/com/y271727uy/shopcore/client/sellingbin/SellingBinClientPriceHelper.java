@@ -6,6 +6,7 @@ import com.y271727uy.shopcore.recipe.SellingBinRecipe;
 import com.y271727uy.shopcore.gameplay.quality.QualityNbt;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Component;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
 
 import java.util.List;
@@ -35,7 +36,17 @@ public final class SellingBinClientPriceHelper {
     }
 
     public static int getPriceBonus(SellingBinRecipe recipe, ItemStack stack) {
-        return SellingBinClientPriceCache.getPriceBonus(recipe.getPriceKey(stack));
+        ResourceLocation priceKey = recipe.getPriceKey(stack);
+        long total = (long) SellingBinClientPriceCache.getFloatingPriceBonus(priceKey)
+                + SellingBinClientPriceCache.getVirtualStockPriceBonus(priceKey)
+                + SellingBinClientPriceCache.getSeasonalPriceBonus(priceKey);
+        if (total <= Integer.MIN_VALUE) {
+            return Integer.MIN_VALUE;
+        }
+        if (total >= Integer.MAX_VALUE) {
+            return Integer.MAX_VALUE;
+        }
+        return (int) total;
     }
 
     public static int getSeasonalPriceBonus(SellingBinRecipe recipe) {

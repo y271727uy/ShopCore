@@ -8,6 +8,8 @@ import com.y271727uy.shopcore.client.menu.SellingBinMenu;
 import com.y271727uy.shopcore.economic.CurrencyDenomination;
 import com.y271727uy.shopcore.economic.CurrencyOperationResult;
 import com.y271727uy.shopcore.economic.Tax;
+import com.y271727uy.shopcore.event.SellingBinEvents;
+import com.y271727uy.shopcore.gameplay.sellingbin.SellingBinGroupManager;
 import com.y271727uy.shopcore.recipe.SellingBinRecipe;
 import net.minecraft.MethodsReturnNonnullByDefault;
 import net.minecraft.core.BlockPos;
@@ -18,6 +20,7 @@ import net.minecraft.network.protocol.game.ClientboundBlockEntityDataPacket;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.util.Mth;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.MenuProvider;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
@@ -365,11 +368,16 @@ public class SellingBinBlockEntity extends BlockEntity implements MenuProvider {
     }
 
     private void runAllRecipes(Level level) {
+        if (!(level instanceof ServerLevel serverLevel)) {
+            return;
+        }
+
         int slots = itemHandler.getSlots();
 
         // Snapshot inputs first so outputs inserted during this tick won't affect which slots are processed.
         record Planned(int slot, SellingBinRecipe recipe, int sellCount) {}
         List<Planned> planned = new ArrayList<>();
+        boolean marketChanged = false;
 
         for (int slot = 0; slot < slots; slot++) {
             var stack = itemHandler.getStackInSlot(slot);
@@ -392,6 +400,7 @@ public class SellingBinBlockEntity extends BlockEntity implements MenuProvider {
             // Re-check slot still has an item and can consume 1.
             var current = itemHandler.getStackInSlot(p.slot());
             if (current.isEmpty()) continue;
+            ItemStack soldStack = current.copy();
 
             int available = current.getCount();
             int toSell = Math.min(p.sellCount(), available);
@@ -419,11 +428,13 @@ public class SellingBinBlockEntity extends BlockEntity implements MenuProvider {
                 }
 
                 itemHandler.extractItem(p.slot(), requiredItems, false);
+                marketChanged |= SellingBinGroupManager.recordSale(serverLevel, p.recipe(), soldStack, toSell);
                 continue;
             }
 
             // consume all chosen inputs
             itemHandler.extractItem(p.slot(), requiredItems, false);
+            marketChanged |= SellingBinGroupManager.recordSale(serverLevel, p.recipe(), soldStack, toSell);
 
             var remaining = out;
             for (int i = 0; i < slots; i++) {
@@ -434,6 +445,10 @@ public class SellingBinBlockEntity extends BlockEntity implements MenuProvider {
             if (!remaining.isEmpty()) {
                 net.minecraft.world.level.block.Block.popResource(level, worldPosition, remaining);
             }
+        }
+
+        if (marketChanged) {
+            SellingBinEvents.syncAllPlayers(serverLevel);
         }
     }
 

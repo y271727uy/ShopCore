@@ -12,29 +12,37 @@ import java.util.Map;
 import java.util.function.Supplier;
 
 public final class SellingBinPriceSyncS2CPacket {
-    private final Map<ResourceLocation, Integer> totalPriceBonusByRecipe;
+    private final Map<ResourceLocation, Integer> floatingPriceBonusByRecipe;
+    private final Map<ResourceLocation, Integer> virtualStockPriceBonusByRecipe;
     private final Map<ResourceLocation, Integer> seasonalPriceBonusByRecipe;
 
-    public SellingBinPriceSyncS2CPacket(Map<ResourceLocation, Integer> totalPriceBonusByRecipe, Map<ResourceLocation, Integer> seasonalPriceBonusByRecipe) {
-        this.totalPriceBonusByRecipe = Map.copyOf(totalPriceBonusByRecipe);
+    public SellingBinPriceSyncS2CPacket(
+            Map<ResourceLocation, Integer> floatingPriceBonusByRecipe,
+            Map<ResourceLocation, Integer> virtualStockPriceBonusByRecipe,
+            Map<ResourceLocation, Integer> seasonalPriceBonusByRecipe
+    ) {
+        this.floatingPriceBonusByRecipe = Map.copyOf(floatingPriceBonusByRecipe);
+        this.virtualStockPriceBonusByRecipe = Map.copyOf(virtualStockPriceBonusByRecipe);
         this.seasonalPriceBonusByRecipe = Map.copyOf(seasonalPriceBonusByRecipe);
     }
 
     public static void encode(SellingBinPriceSyncS2CPacket packet, FriendlyByteBuf buf) {
-        writeBonusMap(buf, packet.totalPriceBonusByRecipe);
+        writeBonusMap(buf, packet.floatingPriceBonusByRecipe);
+        writeBonusMap(buf, packet.virtualStockPriceBonusByRecipe);
         writeBonusMap(buf, packet.seasonalPriceBonusByRecipe);
     }
 
     public static SellingBinPriceSyncS2CPacket decode(FriendlyByteBuf buf) {
-        Map<ResourceLocation, Integer> totalPriceBonusByRecipe = readBonusMap(buf);
+        Map<ResourceLocation, Integer> floatingPriceBonusByRecipe = readBonusMap(buf);
+        Map<ResourceLocation, Integer> virtualStockPriceBonusByRecipe = readBonusMap(buf);
         Map<ResourceLocation, Integer> seasonalPriceBonusByRecipe = readBonusMap(buf);
-        return new SellingBinPriceSyncS2CPacket(totalPriceBonusByRecipe, seasonalPriceBonusByRecipe);
+        return new SellingBinPriceSyncS2CPacket(floatingPriceBonusByRecipe, virtualStockPriceBonusByRecipe, seasonalPriceBonusByRecipe);
     }
 
     public static void handle(SellingBinPriceSyncS2CPacket packet, Supplier<NetworkEvent.Context> contextSupplier) {
         NetworkEvent.Context context = contextSupplier.get();
         context.enqueueWork(() -> DistExecutor.unsafeRunWhenOn(Dist.CLIENT, () -> () ->
-                SellingBinClientPriceCache.applySnapshot(packet.totalPriceBonusByRecipe, packet.seasonalPriceBonusByRecipe)
+                SellingBinClientPriceCache.applySnapshot(packet.floatingPriceBonusByRecipe, packet.virtualStockPriceBonusByRecipe, packet.seasonalPriceBonusByRecipe)
         ));
         context.setPacketHandled(true);
     }

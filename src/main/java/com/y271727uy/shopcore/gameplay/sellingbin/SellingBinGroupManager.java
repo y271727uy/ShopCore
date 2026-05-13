@@ -6,6 +6,7 @@ import com.y271727uy.shopcore.recipe.SellingBinRecipe;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.util.RandomSource;
+import net.minecraft.world.item.ItemStack;
 
 import java.util.Collections;
 import java.util.Comparator;
@@ -42,8 +43,32 @@ public final class SellingBinGroupManager {
         return SellingBinMarketSavedData.get(level).snapshotPriceBonuses();
     }
 
+    public static Map<ResourceLocation, Integer> snapshotFloatingPriceBonuses(ServerLevel level) {
+        return SellingBinMarketSavedData.get(level).snapshotFloatingPriceBonuses();
+    }
+
     public static Map<ResourceLocation, Integer> snapshotSeasonalPriceBonuses(ServerLevel level) {
         return SellingBinMarketSavedData.get(level).snapshotSeasonalPriceBonuses();
+    }
+
+    public static Map<ResourceLocation, Integer> snapshotVirtualStockPriceBonuses(ServerLevel level) {
+        return SellingBinMarketSavedData.get(level).snapshotVirtualStockPriceBonuses();
+    }
+
+    public static boolean recordSale(ServerLevel level, SellingBinRecipe recipe, ItemStack soldStack, int soldCount) {
+        if (!recipe.isTradeBalance() || soldStack.isEmpty() || soldCount <= 0) {
+            return false;
+        }
+
+        SellingBinMarketSavedData marketData = SellingBinMarketSavedData.get(level);
+        ResourceLocation priceKey = recipe.getPriceKey(soldStack);
+        int previousBonus = marketData.getPriceBonus(priceKey);
+        boolean changed = marketData.addVirtualStock(priceKey, soldCount);
+        if (!changed) {
+            return false;
+        }
+
+        return marketData.getPriceBonus(priceKey) != previousBonus;
     }
 
     public static void invalidateCachedGroups() {
@@ -78,6 +103,7 @@ public final class SellingBinGroupManager {
             for (SellingBinGroup group : groups.values()) {
                 updatedPrices |= applyDailyGroupAdjustments(level, marketData, group, previousFloatingBonuses, previousCarryStages);
             }
+            updatedPrices |= marketData.applyDailyDecay();
         }
 
         marketData.setLastProcessedDay(currentDay);
@@ -301,6 +327,7 @@ public final class SellingBinGroupManager {
             Collections.swap(entries, i, swapIndex);
         }
     }
+
 
     private static int mergeBonus(int left, int right) {
         long sum = (long) left + right;

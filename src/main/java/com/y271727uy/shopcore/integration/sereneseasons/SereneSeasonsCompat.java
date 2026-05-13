@@ -1,5 +1,6 @@
 package com.y271727uy.shopcore.integration.sereneseasons;
 
+import net.minecraft.core.BlockPos;
 import net.minecraft.world.level.Level;
 
 import java.lang.reflect.Method;
@@ -15,20 +16,29 @@ public final class SereneSeasonsCompat {
     private static final String[] STATE_METHOD_NAMES = {
             "getSeasonState",
             "getSeasonStateForLevel",
-            "getSeasonStateAt"
+            "getSeasonStateAt",
+            "getSeasonStateAtPos",
+            "getSeasonStateAtLevel",
+            "getSeasonStateFromLevel"
     };
 
     private static final String[] SEASON_METHOD_NAMES = {
             "getSeason",
             "getSubSeason",
             "season",
-            "subSeason"
+            "subSeason",
+            "getName",
+            "name"
     };
 
     private SereneSeasonsCompat() {
     }
 
     public static Optional<String> getCurrentSeasonId(Level level) {
+        return getCurrentSeasonId(level, null);
+    }
+
+    public static Optional<String> getCurrentSeasonId(Level level, BlockPos pos) {
         if (level == null) {
             return Optional.empty();
         }
@@ -39,7 +49,7 @@ public final class SereneSeasonsCompat {
                 continue;
             }
 
-            Object seasonState = invokeStaticNoArgOrLevel(helperClass, level, STATE_METHOD_NAMES);
+            Object seasonState = invokeSeasonState(helperClass, level, pos);
             if (seasonState == null) {
                 continue;
             }
@@ -69,27 +79,59 @@ public final class SereneSeasonsCompat {
         return normalizeSeasonId(seasonState.toString());
     }
 
-    private static Object invokeStaticNoArgOrLevel(Class<?> type, Level level, String[] methodNames) {
-        for (String methodName : methodNames) {
+    private static Object invokeSeasonState(Class<?> type, Level level, BlockPos pos) {
+        for (String methodName : STATE_METHOD_NAMES) {
             for (Method method : type.getMethods()) {
-                if (!method.getName().equals(methodName) || method.getParameterCount() != 1) {
+                if (!method.getName().equals(methodName)) {
                     continue;
                 }
 
-                Class<?> parameterType = method.getParameterTypes()[0];
-                if (!parameterType.isInstance(level) && !parameterType.isAssignableFrom(level.getClass())) {
+                if (method.getParameterCount() == 1) {
+                    Class<?> parameterType = method.getParameterTypes()[0];
+                    if (!parameterType.isInstance(level) && !parameterType.isAssignableFrom(level.getClass())) {
+                        continue;
+                    }
+
+                    Object result = invokeStatic(method, level);
+                    if (result != null) {
+                        return result;
+                    }
                     continue;
                 }
 
-                try {
-                    return method.invoke(null, level);
-                } catch (ReflectiveOperationException ignored) {
+                if (method.getParameterCount() == 2 && pos != null) {
+                    Class<?>[] parameterTypes = method.getParameterTypes();
+                    boolean firstMatches = parameterTypes[0].isInstance(level) || parameterTypes[0].isAssignableFrom(level.getClass());
+                    boolean secondMatches = parameterTypes[1].isInstance(pos) || parameterTypes[1].isAssignableFrom(pos.getClass());
+                    if (!firstMatches || !secondMatches) {
+                        continue;
+                    }
+
+                    Object result = invokeStatic(method, level, pos);
+                    if (result != null) {
+                        return result;
+                    }
                     continue;
+                }
+
+                if (method.getParameterCount() == 0) {
+                    Object result = invokeStatic(method);
+                    if (result != null) {
+                        return result;
+                    }
                 }
             }
         }
 
         return null;
+    }
+
+    private static Object invokeStatic(Method method, Object... args) {
+        try {
+            return method.invoke(null, args);
+        } catch (ReflectiveOperationException ignored) {
+            return null;
+        }
     }
 
     private static Object invokeNoArg(Object target, String methodName) {
@@ -101,7 +143,6 @@ public final class SereneSeasonsCompat {
             try {
                 return method.invoke(target);
             } catch (ReflectiveOperationException ignored) {
-                continue;
             }
         }
 
@@ -134,7 +175,11 @@ public final class SereneSeasonsCompat {
         if (normalized.contains("winter")) {
             return Optional.of("winter");
         }
+        if (normalized.contains("unknown") || normalized.contains("null")) {
+            return Optional.empty();
+        }
 
         return Optional.of(normalized);
     }
+
 }

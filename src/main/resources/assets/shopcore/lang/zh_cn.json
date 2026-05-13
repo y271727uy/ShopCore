@@ -37,9 +37,20 @@
   "message.shopcore.selling_bin.unbind_fail": "解绑账户失败!",
   "message.shopcore.selling_bin.bound_other": "该出货箱已绑定其他玩家!",
   "block.shopcore.selling_bin": "出货箱",
+  "block.shopcore.tree_compost": "树坑",
+  "block.shopcore.tree_stump": "树桩",
   "container.shopcore.selling_bin": "出货箱",
   "item.shopcore.bank_card": "HSBCMC 银行卡",
   "item.shopcore.premium_bank_card": "HSBCMC Premium银行卡",
-  "config.jade.plugin_shopcore.selling_bin_jade": "出货箱"
+  "config.jade.plugin_shopcore.selling_bin_jade": "出货箱",
+  "config.jade.plugin_shopcore.tree_stump_jade": "树桩",
+  "tooltip.shopcore.jade.tree_stump.title": "树桩信息",
+  "tooltip.shopcore.jade.tree_stump.fertility": "肥力：%s/25",
+  "tooltip.shopcore.jade.tree_stump.water": "含水：%s/50",
+  "tooltip.shopcore.jade.tree_stump.branches": "杂枝：%s/25",
+  "tooltip.shopcore.jade.tree_stump.maintenance_score": "维护评分：%s/100",
+  "tooltip.shopcore.jade.tree_stump.maintenance_active": "树木维护尚可",
+  "tooltip.shopcore.jade.tree_stump.maintenance_paused": "树木维护不佳",
+  "tooltip.shopcore.jade.tree_stump.maintenance_bonus": "树木维护良好，成长速度 +%s"
 }
 

@@ -55,7 +55,12 @@ public class SellingBinRecipe implements Recipe<SellingBinRecipe.RecipeInput> {
      */
     public final String group;
 
-    public SellingBinRecipe(ResourceLocation id, Ingredient input, int inputCount, ItemStack output, @Nullable Integer base, @Nullable Integer max, String group) {
+    /**
+     * Whether selling this recipe should contribute to the virtual stock market.
+     */
+    public final boolean tradeBalance;
+
+    public SellingBinRecipe(ResourceLocation id, Ingredient input, int inputCount, ItemStack output, @Nullable Integer base, @Nullable Integer max, String group, boolean tradeBalance) {
         this.id = id;
         this.input = input;
         this.inputChoices = input.getItems();
@@ -64,6 +69,7 @@ public class SellingBinRecipe implements Recipe<SellingBinRecipe.RecipeInput> {
         this.base = base;
         this.max = max;
         this.group = group;
+        this.tradeBalance = tradeBalance;
     }
 
     @Override
@@ -76,15 +82,11 @@ public class SellingBinRecipe implements Recipe<SellingBinRecipe.RecipeInput> {
     }
 
     public ResourceLocation getPriceKey(ItemStack stack) {
-        if (!isMultiChoiceInput() || stack.isEmpty() || !input.test(stack)) {
+        if (stack.isEmpty() || !input.test(stack)) {
             return id;
         }
 
-        ResourceLocation itemId = BuiltInRegistries.ITEM.getKey(stack.getItem());
-        return ResourceLocation.fromNamespaceAndPath(
-                id.getNamespace(),
-                "selling_bin/" + id.getPath() + "/" + itemId.getNamespace() + "/" + itemId.getPath()
-        );
+        return BuiltInRegistries.ITEM.getKey(stack.getItem());
     }
 
     public ItemStack[] getInputChoices() {
@@ -93,6 +95,10 @@ public class SellingBinRecipe implements Recipe<SellingBinRecipe.RecipeInput> {
 
     public int getInputCount() {
         return inputCount;
+    }
+
+    public boolean isTradeBalance() {
+        return tradeBalance;
     }
 
     public ItemStack getPrimaryInputPreview() {
@@ -161,11 +167,18 @@ public class SellingBinRecipe implements Recipe<SellingBinRecipe.RecipeInput> {
     }
 
     public int rollOutputCount(Level level, ItemStack inputStack) {
-        int priceBonus = getPriceBonus(level, inputStack) + QualityNbt.rollPriceBonus(inputStack, level.random);
+        int priceBonus = getPriceBonus(level, inputStack)
+                + QualityNbt.rollPriceBonus(inputStack, level.random);
         int b = getMinOutputCount(priceBonus);
         int m = getMaxOutputCount(priceBonus);
         // inclusive range
         return b + level.random.nextInt(m - b + 1);
+    }
+
+    private int getPriceBonus(Level level, ItemStack inputStack) {
+        return getFloatingPriceBonus(level, inputStack)
+                + getVirtualStockPriceBonus(level, inputStack)
+                + getSeasonalPriceBonus(level, inputStack);
     }
 
     public long getRawMinOutputCount(int priceBonus) {
@@ -194,15 +207,25 @@ public class SellingBinRecipe implements Recipe<SellingBinRecipe.RecipeInput> {
         return displayOutput;
     }
 
-    private int getPriceBonus(Level level) {
-        return getPriceBonus(level, ItemStack.EMPTY);
+    private int getFloatingPriceBonus(Level level, ItemStack inputStack) {
+        if (level instanceof ServerLevel serverLevel) {
+            return SellingBinGroupManager.snapshotFloatingPriceBonuses(serverLevel).getOrDefault(getPriceKey(inputStack), 0);
+        }
+        return SellingBinClientPriceCache.getFloatingPriceBonus(getPriceKey(inputStack));
     }
 
-    private int getPriceBonus(Level level, ItemStack inputStack) {
+    private int getVirtualStockPriceBonus(Level level, ItemStack inputStack) {
         if (level instanceof ServerLevel serverLevel) {
-            return SellingBinGroupManager.getPriceBonus(serverLevel, getPriceKey(inputStack));
+            return SellingBinGroupManager.snapshotVirtualStockPriceBonuses(serverLevel).getOrDefault(getPriceKey(inputStack), 0);
         }
-        return SellingBinClientPriceCache.getPriceBonus(getPriceKey(inputStack));
+        return SellingBinClientPriceCache.getVirtualStockPriceBonus(getPriceKey(inputStack));
+    }
+
+    private int getSeasonalPriceBonus(Level level, ItemStack inputStack) {
+        if (level instanceof ServerLevel serverLevel) {
+            return SellingBinGroupManager.snapshotSeasonalPriceBonuses(serverLevel).getOrDefault(getPriceKey(inputStack), 0);
+        }
+        return SellingBinClientPriceCache.getSeasonalPriceBonus(getPriceKey(inputStack));
     }
 
     private static int clampToPositiveInt(long value) {
@@ -306,13 +329,15 @@ public class SellingBinRecipe implements Recipe<SellingBinRecipe.RecipeInput> {
                 group = listEl == null ? "" : listEl.toString();
             }
 
+            boolean tradeBalance = GsonHelper.getAsBoolean(json, "trade_balance", false);
+
             // If only one of base/max is provided, ignore both (as requested: optional and should not crash)
             if ((base == null) != (max == null)) {
                 base = null;
                 max = null;
             }
 
-            return new SellingBinRecipe(recipeId, input, inputCount, output, base, max, group);
+            return new SellingBinRecipe(recipeId, input, inputCount, output, base, max, group, tradeBalance);
         }
 
         @Override
@@ -330,7 +355,8 @@ public class SellingBinRecipe implements Recipe<SellingBinRecipe.RecipeInput> {
             }
 
             String group = buf.readUtf();
-            return new SellingBinRecipe(recipeId, input, inputCount, output, base, max, group);
+            boolean tradeBalance = buf.readBoolean();
+            return new SellingBinRecipe(recipeId, input, inputCount, output, base, max, group, tradeBalance);
         }
 
         @Override
@@ -347,6 +373,7 @@ public class SellingBinRecipe implements Recipe<SellingBinRecipe.RecipeInput> {
             }
 
             buf.writeUtf(recipe.group);
+            buf.writeBoolean(recipe.tradeBalance);
         }
     }
 }

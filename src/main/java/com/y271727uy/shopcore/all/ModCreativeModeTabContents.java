@@ -22,6 +22,8 @@ public final class ModCreativeModeTabContents {
         event.accept(ModItem.BANK_CARD.get());
         event.accept(ModItem.PREMIUM_BANK_CARD.get());
         event.accept(ModItem.SELLING_BIN.get());
+        event.accept(ModItem.TREE_COMPOST.get());
+        event.accept(ModItem.TREE_STUMP.get());
     }
 
     private static boolean isListTab(BuildCreativeModeTabContentsEvent event) {

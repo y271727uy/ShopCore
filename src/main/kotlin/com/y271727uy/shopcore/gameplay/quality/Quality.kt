@@ -5,6 +5,7 @@ import net.minecraft.resources.ResourceLocation
 
 /**
  * 品质档位：仅允许 1 / 2 / 3，对应 NBT 字段 quality1 / quality2 / quality3。
+ * 这是一个注解（算了别在意），因为实现了Quality作物，所以我认为我可以写和Quality Food不兼容（？）
  */
 @Suppress("unused")
 enum class Quality(

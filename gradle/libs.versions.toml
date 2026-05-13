@@ -4,7 +4,7 @@
 [versions]
 # Replace these versions with the exact versions you want for your project
 registrate = "2.3.0"    # y271727uy registrate version; update if needed
-jei = "15.2.0.27"       # JEI for Minecraft 1.20.1 Forge
+jei = "15.20.0.112"       # JEI for Minecraft 1.20.1 Forge
 
 [libraries]
 # Registrate (y271727uy coordinates - adjust group/name/version if necessary)

@@ -8,6 +8,7 @@
   },
   "base": 2,
   "max": 4,
-  "group": "fruit"
+  "group": "fruit",
+  "trade_balance": true
 }
 

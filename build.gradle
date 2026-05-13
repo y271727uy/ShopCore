@@ -216,6 +216,9 @@ dependencies {
     modImplementation("maven.modrinth:kotlin-for-forge:Zsh14XeQ")
 
     modRuntimeOnly("maven.modrinth:probejs:7.0.0")
+    modImplementation("maven.modrinth:fruits-delight:qPyefm6m")
+    modRuntimeOnly("maven.modrinth:manors-bounty:D0TALYL6")
+    modRuntimeOnly("maven.modrinth:geckolib:HVdLnQMI")
 
 
 }

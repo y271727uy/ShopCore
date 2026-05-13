@@ -1,6 +1,8 @@
 package com.y271727uy.shopcore.integration.jade;
 
 import com.y271727uy.shopcore.block.SellingBinBlock;
+import com.y271727uy.shopcore.gameplay.tree.block.TreeStumpBlock;
+import com.y271727uy.shopcore.integration.jade.provider.TreeStumpTooltipProvider;
 import snownee.jade.api.IWailaClientRegistration;
 import snownee.jade.api.IWailaCommonRegistration;
 import snownee.jade.api.IWailaPlugin;
@@ -13,6 +15,7 @@ public class ShopcoreJadePlugin implements IWailaPlugin {
 
     public void registerClient(IWailaClientRegistration registration) {
         registration.registerBlockComponent(SellingBinTooltipProvider.INSTANCE, SellingBinBlock.class);
+        registration.registerBlockComponent(TreeStumpTooltipProvider.INSTANCE, TreeStumpBlock.class);
     }
 }
 

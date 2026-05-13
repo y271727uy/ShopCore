@@ -38,8 +38,19 @@
   "message.shopcore.selling_bin.unbind_fail": "Failed to unbind account!",
   "message.shopcore.selling_bin.bound_other": "This selling bin is already bound to another player!",
   "block.shopcore.selling_bin": "Selling Bin",
+  "block.shopcore.tree_compost": "Tree Compost",
+  "block.shopcore.tree_stump": "Tree Stump",
   "container.shopcore.selling_bin": "Selling Bin",
   "item.shopcore.bank_card": "HSBCMC Card",
   "item.shopcore.premium_bank_card": "HSBCMC Premium Card",
-  "config.jade.plugin_shopcore.selling_bin_jade": "ShopCore: Selling Bin"
+  "config.jade.plugin_shopcore.selling_bin_jade": "ShopCore: Selling Bin",
+  "config.jade.plugin_shopcore.tree_stump_jade": "ShopCore: Tree Stump",
+  "tooltip.shopcore.jade.tree_stump.title": "Tree Stump Info",
+  "tooltip.shopcore.jade.tree_stump.fertility": "Fertility: %s/25",
+  "tooltip.shopcore.jade.tree_stump.water": "Water: %s/50",
+  "tooltip.shopcore.jade.tree_stump.branches": "Branches: %s/25",
+  "tooltip.shopcore.jade.tree_stump.maintenance_score": "Maintenance: %s/100",
+  "tooltip.shopcore.jade.tree_stump.maintenance_active": "Tree maintenance is acceptable",
+  "tooltip.shopcore.jade.tree_stump.maintenance_paused": "Tree maintenance is too low; growth is paused",
+  "tooltip.shopcore.jade.tree_stump.maintenance_bonus": "Tree maintenance is excellent, growth speed +%s"
 }

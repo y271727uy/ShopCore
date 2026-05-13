@@ -47,16 +47,18 @@ public final class SellingBinEvents {
         }
     }
 
-    private static void syncAllPlayers(ServerLevel level) {
+    public static void syncAllPlayers(ServerLevel level) {
         ModMessages.get().send(PacketDistributor.ALL.noArg(), new SellingBinPriceSyncS2CPacket(
-                SellingBinGroupManager.snapshotPriceBonuses(level),
+                SellingBinGroupManager.snapshotFloatingPriceBonuses(level),
+                SellingBinGroupManager.snapshotVirtualStockPriceBonuses(level),
                 SellingBinGroupManager.snapshotSeasonalPriceBonuses(level)
         ));
     }
 
-    private static void syncPlayer(ServerPlayer player) {
+    public static void syncPlayer(ServerPlayer player) {
         ModMessages.get().send(PacketDistributor.PLAYER.with(() -> player), new SellingBinPriceSyncS2CPacket(
-                SellingBinGroupManager.snapshotPriceBonuses(player.serverLevel()),
+                SellingBinGroupManager.snapshotFloatingPriceBonuses(player.serverLevel()),
+                SellingBinGroupManager.snapshotVirtualStockPriceBonuses(player.serverLevel()),
                 SellingBinGroupManager.snapshotSeasonalPriceBonuses(player.serverLevel())
         ));
     }
