@@ -15,34 +15,39 @@ public final class SellingBinPriceSyncS2CPacket {
     private final Map<ResourceLocation, Integer> floatingPriceBonusByRecipe;
     private final Map<ResourceLocation, Integer> virtualStockPriceBonusByRecipe;
     private final Map<ResourceLocation, Integer> seasonalPriceBonusByRecipe;
+    private final Map<ResourceLocation, Integer> longTermPriceBonusByRecipe;
 
     public SellingBinPriceSyncS2CPacket(
             Map<ResourceLocation, Integer> floatingPriceBonusByRecipe,
             Map<ResourceLocation, Integer> virtualStockPriceBonusByRecipe,
-            Map<ResourceLocation, Integer> seasonalPriceBonusByRecipe
+            Map<ResourceLocation, Integer> seasonalPriceBonusByRecipe,
+            Map<ResourceLocation, Integer> longTermPriceBonusByRecipe
     ) {
         this.floatingPriceBonusByRecipe = Map.copyOf(floatingPriceBonusByRecipe);
         this.virtualStockPriceBonusByRecipe = Map.copyOf(virtualStockPriceBonusByRecipe);
         this.seasonalPriceBonusByRecipe = Map.copyOf(seasonalPriceBonusByRecipe);
+        this.longTermPriceBonusByRecipe = Map.copyOf(longTermPriceBonusByRecipe);
     }
 
     public static void encode(SellingBinPriceSyncS2CPacket packet, FriendlyByteBuf buf) {
         writeBonusMap(buf, packet.floatingPriceBonusByRecipe);
         writeBonusMap(buf, packet.virtualStockPriceBonusByRecipe);
         writeBonusMap(buf, packet.seasonalPriceBonusByRecipe);
+        writeBonusMap(buf, packet.longTermPriceBonusByRecipe);
     }
 
     public static SellingBinPriceSyncS2CPacket decode(FriendlyByteBuf buf) {
         Map<ResourceLocation, Integer> floatingPriceBonusByRecipe = readBonusMap(buf);
         Map<ResourceLocation, Integer> virtualStockPriceBonusByRecipe = readBonusMap(buf);
         Map<ResourceLocation, Integer> seasonalPriceBonusByRecipe = readBonusMap(buf);
-        return new SellingBinPriceSyncS2CPacket(floatingPriceBonusByRecipe, virtualStockPriceBonusByRecipe, seasonalPriceBonusByRecipe);
+        Map<ResourceLocation, Integer> longTermPriceBonusByRecipe = readBonusMap(buf);
+        return new SellingBinPriceSyncS2CPacket(floatingPriceBonusByRecipe, virtualStockPriceBonusByRecipe, seasonalPriceBonusByRecipe, longTermPriceBonusByRecipe);
     }
 
     public static void handle(SellingBinPriceSyncS2CPacket packet, Supplier<NetworkEvent.Context> contextSupplier) {
         NetworkEvent.Context context = contextSupplier.get();
         context.enqueueWork(() -> DistExecutor.unsafeRunWhenOn(Dist.CLIENT, () -> () ->
-                SellingBinClientPriceCache.applySnapshot(packet.floatingPriceBonusByRecipe, packet.virtualStockPriceBonusByRecipe, packet.seasonalPriceBonusByRecipe)
+                SellingBinClientPriceCache.applyExtendedSnapshot(packet.floatingPriceBonusByRecipe, packet.virtualStockPriceBonusByRecipe, packet.seasonalPriceBonusByRecipe, packet.longTermPriceBonusByRecipe)
         ));
         context.setPacketHandled(true);
     }

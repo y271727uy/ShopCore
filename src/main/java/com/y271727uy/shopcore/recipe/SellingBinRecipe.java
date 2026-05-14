@@ -176,9 +176,11 @@ public class SellingBinRecipe implements Recipe<SellingBinRecipe.RecipeInput> {
     }
 
     private int getPriceBonus(Level level, ItemStack inputStack) {
-        return getFloatingPriceBonus(level, inputStack)
-                + getVirtualStockPriceBonus(level, inputStack)
-                + getSeasonalPriceBonus(level, inputStack);
+        ResourceLocation priceKey = getPriceKey(inputStack);
+        if (level instanceof ServerLevel serverLevel) {
+            return SellingBinGroupManager.getPriceBonus(serverLevel, priceKey);
+        }
+        return SellingBinClientPriceCache.getPriceBonus(priceKey);
     }
 
     public long getRawMinOutputCount(int priceBonus) {

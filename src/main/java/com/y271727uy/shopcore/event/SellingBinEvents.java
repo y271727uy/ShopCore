@@ -51,7 +51,8 @@ public final class SellingBinEvents {
         ModMessages.get().send(PacketDistributor.ALL.noArg(), new SellingBinPriceSyncS2CPacket(
                 SellingBinGroupManager.snapshotFloatingPriceBonuses(level),
                 SellingBinGroupManager.snapshotVirtualStockPriceBonuses(level),
-                SellingBinGroupManager.snapshotSeasonalPriceBonuses(level)
+                SellingBinGroupManager.snapshotSeasonalPriceBonuses(level),
+                SellingBinGroupManager.snapshotLongTermPriceBonuses(level)
         ));
     }
 
@@ -59,7 +60,8 @@ public final class SellingBinEvents {
         ModMessages.get().send(PacketDistributor.PLAYER.with(() -> player), new SellingBinPriceSyncS2CPacket(
                 SellingBinGroupManager.snapshotFloatingPriceBonuses(player.serverLevel()),
                 SellingBinGroupManager.snapshotVirtualStockPriceBonuses(player.serverLevel()),
-                SellingBinGroupManager.snapshotSeasonalPriceBonuses(player.serverLevel())
+                SellingBinGroupManager.snapshotSeasonalPriceBonuses(player.serverLevel()),
+                SellingBinGroupManager.snapshotLongTermPriceBonuses(player.serverLevel())
         ));
     }
 }

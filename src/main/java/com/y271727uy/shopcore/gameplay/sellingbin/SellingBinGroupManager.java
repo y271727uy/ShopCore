@@ -36,11 +36,15 @@ public final class SellingBinGroupManager {
     }
 
     public static int getPriceBonus(ServerLevel level, ResourceLocation recipeId) {
-        return SellingBinMarketSavedData.get(level).getPriceBonus(recipeId);
+        SellingBinMarketSavedData marketData = SellingBinMarketSavedData.get(level);
+        long currentDay = Math.floorDiv(level.getDayTime(), DAY_LENGTH_TICKS);
+        return marketData.getPriceBonus(recipeId, currentDay);
     }
 
     public static Map<ResourceLocation, Integer> snapshotPriceBonuses(ServerLevel level) {
-        return SellingBinMarketSavedData.get(level).snapshotPriceBonuses();
+        SellingBinMarketSavedData marketData = SellingBinMarketSavedData.get(level);
+        long currentDay = Math.floorDiv(level.getDayTime(), DAY_LENGTH_TICKS);
+        return marketData.snapshotPriceBonuses(currentDay);
     }
 
     public static Map<ResourceLocation, Integer> snapshotFloatingPriceBonuses(ServerLevel level) {
@@ -55,6 +59,12 @@ public final class SellingBinGroupManager {
         return SellingBinMarketSavedData.get(level).snapshotVirtualStockPriceBonuses();
     }
 
+    public static Map<ResourceLocation, Integer> snapshotLongTermPriceBonuses(ServerLevel level) {
+        SellingBinMarketSavedData marketData = SellingBinMarketSavedData.get(level);
+        long currentDay = Math.floorDiv(level.getDayTime(), DAY_LENGTH_TICKS);
+        return marketData.snapshotLongTermPriceBonuses(currentDay);
+    }
+
     public static boolean recordSale(ServerLevel level, SellingBinRecipe recipe, ItemStack soldStack, int soldCount) {
         if (!recipe.isTradeBalance() || soldStack.isEmpty() || soldCount <= 0) {
             return false;
@@ -62,13 +72,10 @@ public final class SellingBinGroupManager {
 
         SellingBinMarketSavedData marketData = SellingBinMarketSavedData.get(level);
         ResourceLocation priceKey = recipe.getPriceKey(soldStack);
-        int previousBonus = marketData.getPriceBonus(priceKey);
-        boolean changed = marketData.addVirtualStock(priceKey, soldCount);
-        if (!changed) {
-            return false;
-        }
-
-        return marketData.getPriceBonus(priceKey) != previousBonus;
+        long currentDay = Math.floorDiv(level.getDayTime(), DAY_LENGTH_TICKS);
+        boolean changed = marketData.recordSale(priceKey, currentDay);
+        changed |= marketData.addVirtualStock(priceKey, soldCount);
+        return changed;
     }
 
     public static void invalidateCachedGroups() {
@@ -101,9 +108,9 @@ public final class SellingBinGroupManager {
             Map<ResourceLocation, Integer> previousCarryStages = marketData.snapshotCarryStages();
             updatedPrices |= marketData.clearFloatingAdjustments();
             for (SellingBinGroup group : groups.values()) {
-                updatedPrices |= applyDailyGroupAdjustments(level, marketData, group, previousFloatingBonuses, previousCarryStages);
+                updatedPrices |= applyDailyGroupAdjustments(level, currentDay, marketData, group, previousFloatingBonuses, previousCarryStages);
             }
-            updatedPrices |= marketData.applyDailyDecay();
+            updatedPrices |= marketData.applyDailyDecay(day);
         }
 
         marketData.setLastProcessedDay(currentDay);
@@ -174,6 +181,7 @@ public final class SellingBinGroupManager {
 
     private static boolean applyDailyGroupAdjustments(
             ServerLevel level,
+            long currentDay,
             SellingBinMarketSavedData marketData,
             SellingBinGroup group,
             Map<ResourceLocation, Integer> previousFloatingBonuses,
@@ -199,12 +207,14 @@ public final class SellingBinGroupManager {
             }
 
             int seasonalBonus = marketData.getSeasonalPriceBonus(priceKey);
+            int virtualStockBonus = marketData.getVirtualStockPriceBonus(priceKey);
+            int longTermBonus = marketData.getLongTermPriceBonus(priceKey, currentDay);
             Integer nextCarryStage = getNextCarryStage(level.random, previousCarryStages.getOrDefault(priceKey, 0));
             if (nextCarryStage == null) {
                 continue;
             }
 
-            long currentTotalBonus = (long) previousBonus + seasonalBonus;
+            long currentTotalBonus = (long) previousBonus + seasonalBonus + virtualStockBonus + longTermBonus;
             if (!isLegalPriceBonus(recipe, clampToInt(currentTotalBonus))) {
                 continue;
             }
@@ -235,14 +245,14 @@ public final class SellingBinGroupManager {
         for (int i = 0; i < increaseCount; i++) {
             SellingBinGroup.Entry entry = remainingEntries.remove(remainingEntries.size() - 1);
             int amount = getRandomInRange(level.random, DAILY_INCREASE_AMOUNT_MIN, DAILY_INCREASE_AMOUNT_MAX);
-            changed |= applyPriceDelta(marketData, entry, amount);
+            changed |= applyPriceDelta(marketData, currentDay, entry, amount);
         }
 
         int decreaseBudget = Math.min(requestedFreshDecreaseCount, remainingEntries.size());
         for (int i = remainingEntries.size() - 1; i >= 0 && decreaseBudget > 0; i--) {
             SellingBinGroup.Entry entry = remainingEntries.get(i);
             int amount = getRandomInRange(level.random, DAILY_DECREASE_AMOUNT_MIN, DAILY_DECREASE_AMOUNT_MAX);
-            if (applyPriceDelta(marketData, entry, -amount)) {
+            if (applyPriceDelta(marketData, currentDay, entry, -amount)) {
                 changed = true;
                 decreaseBudget--;
             }
@@ -267,7 +277,7 @@ public final class SellingBinGroupManager {
         return changed;
     }
 
-    private static boolean applyPriceDelta(SellingBinMarketSavedData marketData, SellingBinGroup.Entry entry, int delta) {
+    private static boolean applyPriceDelta(SellingBinMarketSavedData marketData, long currentDay, SellingBinGroup.Entry entry, int delta) {
         if (delta == 0) {
             return false;
         }
@@ -276,7 +286,9 @@ public final class SellingBinGroupManager {
         ResourceLocation priceKey = entry.priceKey();
         int currentFloatingBonus = marketData.getFloatingPriceBonus(priceKey);
         int seasonalBonus = marketData.getSeasonalPriceBonus(priceKey);
-        long currentTotalBonus = (long) currentFloatingBonus + seasonalBonus;
+        int virtualStockBonus = marketData.getVirtualStockPriceBonus(priceKey);
+        int longTermBonus = marketData.getLongTermPriceBonus(priceKey, currentDay);
+        long currentTotalBonus = (long) currentFloatingBonus + seasonalBonus + virtualStockBonus + longTermBonus;
         if (delta < 0) {
             Integer legalDelta = getLegalDecreaseDelta(recipe, currentTotalBonus, delta);
             if (legalDelta == null) {

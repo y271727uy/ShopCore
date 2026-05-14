@@ -17,14 +17,21 @@ public final class SellingBinMarketSavedData extends SavedData {
     private static final String FLOATING_BONUSES_TAG = "PriceBonuses";
     private static final String VIRTUAL_STOCK_TAG = "VirtualStock";
     private static final String SEASONAL_BONUSES_TAG = "SeasonalPriceBonuses";
+    private static final String LONG_TERM_BONUSES_TAG = "LongTermPriceBonuses";
+    private static final String LONG_TERM_PRICE_KEY_TAG = "PriceKey";
+    private static final String LONG_TERM_LAST_SELL_DAY_TAG = "LastSellDay";
+    private static final String LONG_TERM_LEGACY_R_TAG = "LegacyR";
     private static final long UNINITIALIZED_DAY = Long.MIN_VALUE;
     private static final int MAX_VIRTUAL_STOCK = 401;
     private static final int NEAR_ZERO_CUTOFF = 3;
+    private static final int MAX_LONG_TERM_R = 7;
 
     private final Map<ResourceLocation, Integer> floatingPriceBonusByRecipe = new HashMap<>();
     private final Map<ResourceLocation, Integer> virtualStockByItem = new HashMap<>();
     private final Map<ResourceLocation, Integer> seasonalPriceBonusByRecipe = new HashMap<>();
     private final Map<ResourceLocation, Integer> carryStageByRecipe = new HashMap<>();
+    private final Map<ResourceLocation, Long> lastSellDayByPriceKey = new HashMap<>();
+    private final Map<ResourceLocation, Integer> legacyRByPriceKey = new HashMap<>();
     private long lastProcessedDay = UNINITIALIZED_DAY;
 
     @SuppressWarnings("resource")
@@ -44,6 +51,7 @@ public final class SellingBinMarketSavedData extends SavedData {
         loadBonusList(tag.getList(FLOATING_BONUSES_TAG, Tag.TAG_COMPOUND), data.floatingPriceBonusByRecipe, data.carryStageByRecipe);
         loadStockList(tag.getList(VIRTUAL_STOCK_TAG, Tag.TAG_COMPOUND), data.virtualStockByItem);
         loadBonusList(tag.getList(SEASONAL_BONUSES_TAG, Tag.TAG_COMPOUND), data.seasonalPriceBonusByRecipe, null);
+        loadLongTermBonusList(tag.getList(LONG_TERM_BONUSES_TAG, Tag.TAG_COMPOUND), data.lastSellDayByPriceKey, data.legacyRByPriceKey);
         return data;
     }
 
@@ -93,6 +101,38 @@ public final class SellingBinMarketSavedData extends SavedData {
         }
     }
 
+    private static void loadLongTermBonusList(ListTag bonuses, Map<ResourceLocation, Long> lastSellDays, Map<ResourceLocation, Integer> legacyBonuses) {
+        for (Tag element : bonuses) {
+            CompoundTag bonusTag = (CompoundTag) element;
+            if (!bonusTag.contains(LONG_TERM_PRICE_KEY_TAG, Tag.TAG_STRING)) {
+                continue;
+            }
+
+            ResourceLocation priceKey = ResourceLocation.tryParse(bonusTag.getString(LONG_TERM_PRICE_KEY_TAG));
+            if (priceKey == null) {
+                continue;
+            }
+
+            if (!bonusTag.contains(LONG_TERM_LAST_SELL_DAY_TAG, Tag.TAG_LONG)) {
+                continue;
+            }
+
+            long lastSellDay = bonusTag.getLong(LONG_TERM_LAST_SELL_DAY_TAG);
+            if (lastSellDay == UNINITIALIZED_DAY) {
+                continue;
+            }
+
+            int legacyR = clampLongTermR(bonusTag.contains(LONG_TERM_LEGACY_R_TAG, Tag.TAG_INT)
+                    ? bonusTag.getInt(LONG_TERM_LEGACY_R_TAG)
+                    : 0);
+
+            lastSellDays.put(priceKey, lastSellDay);
+            if (legacyR > 0) {
+                legacyBonuses.put(priceKey, legacyR);
+            }
+        }
+    }
+
     boolean isInitialized() {
         return lastProcessedDay != UNINITIALIZED_DAY;
     }
@@ -109,7 +149,14 @@ public final class SellingBinMarketSavedData extends SavedData {
     }
 
     int getPriceBonus(ResourceLocation recipeId) {
-        long totalBonus = (long) getFloatingPriceBonus(recipeId) + getVirtualStockPriceBonus(recipeId) + getSeasonalPriceBonus(recipeId);
+        return getPriceBonus(recipeId, lastProcessedDay == UNINITIALIZED_DAY ? 0L : lastProcessedDay);
+    }
+
+    int getPriceBonus(ResourceLocation recipeId, long currentDay) {
+        long totalBonus = (long) getFloatingPriceBonus(recipeId)
+                + getVirtualStockPriceBonus(recipeId)
+                + getSeasonalPriceBonus(recipeId)
+                + getLongTermPriceBonus(recipeId, currentDay);
         if (totalBonus <= Integer.MIN_VALUE) {
             return Integer.MIN_VALUE;
         }
@@ -170,14 +217,42 @@ public final class SellingBinMarketSavedData extends SavedData {
         return true;
     }
 
+    boolean recordSale(ResourceLocation priceKey, long currentDay) {
+        boolean changed = false;
+
+        long previousLastSellDay = lastSellDayByPriceKey.getOrDefault(priceKey, UNINITIALIZED_DAY);
+        if (previousLastSellDay != currentDay) {
+            lastSellDayByPriceKey.put(priceKey, currentDay);
+            changed = true;
+        }
+
+        if (previousLastSellDay != UNINITIALIZED_DAY) {
+            long rawR = Math.max(0L, currentDay - previousLastSellDay);
+            if (rawR > 0L) {
+                int currentLegacyR = getLegacyR(priceKey);
+                int nextLegacyR = clampLongTermR((long) currentLegacyR + rawR);
+                if (currentLegacyR != nextLegacyR) {
+                    legacyRByPriceKey.put(priceKey, nextLegacyR);
+                    changed = true;
+                }
+            }
+        }
+
+        if (changed) {
+            setDirty();
+        }
+
+        return changed;
+    }
 
 
-    boolean applyDailyDecay() {
-        if (virtualStockByItem.isEmpty()) {
+
+    boolean applyDailyDecay(long currentDay) {
+        if (virtualStockByItem.isEmpty() && legacyRByPriceKey.isEmpty()) {
             return false;
         }
 
-        boolean changed = false;
+        boolean virtualChanged = false;
         Map<ResourceLocation, Integer> nextStocks = new HashMap<>(virtualStockByItem.size());
         for (Map.Entry<ResourceLocation, Integer> entry : virtualStockByItem.entrySet()) {
             int currentStock = normalizeVirtualStock(entry.getValue());
@@ -186,16 +261,34 @@ public final class SellingBinMarketSavedData extends SavedData {
                 nextStocks.put(entry.getKey(), nextStock);
             }
             if (nextStock != currentStock) {
-                changed = true;
+                virtualChanged = true;
             }
         }
 
-        if (!changed) {
+        boolean legacyChanged = false;
+        Map<ResourceLocation, Integer> nextLegacyBonuses = new HashMap<>(legacyRByPriceKey.size());
+        for (Map.Entry<ResourceLocation, Integer> entry : legacyRByPriceKey.entrySet()) {
+            int currentLegacyR = clampLongTermR(entry.getValue());
+            int nextLegacyR = Math.max(0, currentLegacyR - 1);
+            if (nextLegacyR > 0) {
+                nextLegacyBonuses.put(entry.getKey(), nextLegacyR);
+            } else if (currentLegacyR > 0 && lastSellDayByPriceKey.containsKey(entry.getKey())) {
+                lastSellDayByPriceKey.put(entry.getKey(), currentDay);
+                legacyChanged = true;
+            }
+            if (nextLegacyR != currentLegacyR) {
+                legacyChanged = true;
+            }
+        }
+
+        if (!virtualChanged && !legacyChanged) {
             return false;
         }
 
         virtualStockByItem.clear();
         virtualStockByItem.putAll(nextStocks);
+        legacyRByPriceKey.clear();
+        legacyRByPriceKey.putAll(nextLegacyBonuses);
         setDirty();
         return true;
     }
@@ -218,6 +311,22 @@ public final class SellingBinMarketSavedData extends SavedData {
 
         setDirty();
         return true;
+    }
+
+    int getLongTermPriceBonus(ResourceLocation priceKey, long currentDay) {
+        int longTermR = getLongTermRarityValue(priceKey, currentDay);
+        return getLongTermPriceBonusForR(longTermR);
+    }
+
+    Map<ResourceLocation, Integer> snapshotLongTermPriceBonuses(long currentDay) {
+        Map<ResourceLocation, Integer> longTermBonuses = new HashMap<>();
+        for (ResourceLocation priceKey : lastSellDayByPriceKey.keySet()) {
+            int bonus = getLongTermPriceBonus(priceKey, currentDay);
+            if (bonus != 0) {
+                longTermBonuses.put(priceKey, bonus);
+            }
+        }
+        return longTermBonuses;
     }
 
     int getCarryStage(ResourceLocation recipeId) {
@@ -296,6 +405,15 @@ public final class SellingBinMarketSavedData extends SavedData {
         return new HashMap<>(seasonalPriceBonusByRecipe);
     }
 
+    Map<ResourceLocation, Integer> snapshotPriceBonuses(long currentDay) {
+        Map<ResourceLocation, Integer> totalBonuses = snapshotSeasonalPriceBonuses();
+        snapshotFloatingPriceBonuses().forEach((recipeId, bonus) -> totalBonuses.merge(recipeId, bonus, SellingBinMarketSavedData::mergeBonus));
+        snapshotVirtualStockPriceBonuses().forEach((itemId, bonus) -> totalBonuses.merge(itemId, bonus, SellingBinMarketSavedData::mergeBonus));
+        snapshotLongTermPriceBonuses(currentDay).forEach((priceKey, bonus) -> totalBonuses.merge(priceKey, bonus, SellingBinMarketSavedData::mergeBonus));
+        totalBonuses.entrySet().removeIf(entry -> entry.getValue() == 0);
+        return totalBonuses;
+    }
+
     Map<ResourceLocation, Integer> snapshotVirtualStockPriceBonuses() {
         Map<ResourceLocation, Integer> virtualBonuses = new HashMap<>();
         virtualStockByItem.forEach((itemId, stock) -> {
@@ -353,6 +471,39 @@ public final class SellingBinMarketSavedData extends SavedData {
             return -1;
         }
         return 0;
+    }
+
+    private int getLongTermRarityValue(ResourceLocation priceKey, long currentDay) {
+        Long lastSellDay = lastSellDayByPriceKey.get(priceKey);
+        if (lastSellDay == null || lastSellDay == UNINITIALIZED_DAY) {
+            return 0;
+        }
+
+        int legacyR = getLegacyR(priceKey);
+        long effectiveR = legacyR > 0 ? legacyR : Math.max(0L, currentDay - lastSellDay);
+        effectiveR = Math.min(MAX_LONG_TERM_R, effectiveR);
+        return (int) effectiveR;
+    }
+
+    private int getLegacyR(ResourceLocation priceKey) {
+        return clampLongTermR(legacyRByPriceKey.getOrDefault(priceKey, 0));
+    }
+
+    private static int getLongTermPriceBonusForR(int rarityValue) {
+        int normalizedR = clampLongTermR(rarityValue);
+        return switch (normalizedR) {
+            case 0, 1, 2 -> 0;
+            case 3, 4 -> 1;
+            case 5, 6 -> 2;
+            default -> 3;
+        };
+    }
+
+    private static int clampLongTermR(long rarityValue) {
+        if (rarityValue <= 0L) {
+            return 0;
+        }
+        return (int) Math.min(MAX_LONG_TERM_R, rarityValue);
     }
 
     private static int decayVirtualStock(int stock) {
@@ -428,6 +579,19 @@ public final class SellingBinMarketSavedData extends SavedData {
             seasonalBonuses.add(bonusTag);
         });
         tag.put(SEASONAL_BONUSES_TAG, seasonalBonuses);
+
+        ListTag longTermBonuses = new ListTag();
+        lastSellDayByPriceKey.forEach((priceKey, lastSellDay) -> {
+            CompoundTag bonusTag = new CompoundTag();
+            bonusTag.putString(LONG_TERM_PRICE_KEY_TAG, priceKey.toString());
+            bonusTag.putLong(LONG_TERM_LAST_SELL_DAY_TAG, lastSellDay);
+            int legacyR = legacyRByPriceKey.getOrDefault(priceKey, 0);
+            if (legacyR > 0) {
+                bonusTag.putInt(LONG_TERM_LEGACY_R_TAG, legacyR);
+            }
+            longTermBonuses.add(bonusTag);
+        });
+        tag.put(LONG_TERM_BONUSES_TAG, longTermBonuses);
         return tag;
     }
 }
