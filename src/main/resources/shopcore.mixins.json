@@ -8,7 +8,8 @@
     "AbstractShopTabMixin"
   ],
   "client": [
-    "GuiGraphicsQualityOverlayMixin"
+    "GuiGraphicsQualityOverlayMixin",
+    "ItemRendererQualityOverlayMixin"
   ],
   "injectors": {
     "defaultRequire": 1

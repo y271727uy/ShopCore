@@ -8,10 +8,12 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.level.Level;
 import net.minecraftforge.event.AddReloadListenerEvent;
+import net.minecraftforge.event.OnDatapackSyncEvent;
 import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.event.entity.player.PlayerEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
+import net.minecraftforge.server.ServerLifecycleHooks;
 import net.minecraftforge.network.PacketDistributor;
 
 @Mod.EventBusSubscriber(modid = ShopcoreMod.MODID, bus = Mod.EventBusSubscriber.Bus.FORGE)
@@ -37,6 +39,22 @@ public final class SellingBinEvents {
     @SubscribeEvent
     public static void onAddReloadListener(AddReloadListenerEvent event) {
         SellingBinGroupManager.invalidateCachedGroups();
+    }
+
+    @SubscribeEvent
+    public static void onDatapackSync(OnDatapackSyncEvent event) {
+        var server = event.getPlayer() != null ? event.getPlayer().getServer() : ServerLifecycleHooks.getCurrentServer();
+        ServerLevel overworld = server != null ? server.overworld() : null;
+        if (overworld == null) {
+            return;
+        }
+
+        SellingBinGroupManager.refreshForElapsedDays(overworld);
+        if (event.getPlayer() != null) {
+            syncPlayer(event.getPlayer());
+        } else {
+            syncAllPlayers(overworld);
+        }
     }
 
     @SubscribeEvent

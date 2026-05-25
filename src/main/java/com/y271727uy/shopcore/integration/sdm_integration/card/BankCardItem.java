@@ -4,9 +4,17 @@ import com.y271727uy.shopcore.block.SellingBinBlock;
 import com.y271727uy.shopcore.block.entity.SellingBinBlockEntity;
 import net.minecraft.ChatFormatting;
 import net.minecraft.MethodsReturnNonnullByDefault;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.registries.Registries;
+import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
+import net.minecraft.resources.ResourceKey;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
+import net.minecraft.world.InteractionResultHolder;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.TooltipFlag;
@@ -22,8 +30,29 @@ import java.util.List;
 @MethodsReturnNonnullByDefault
 @ParametersAreNonnullByDefault
 public class BankCardItem extends Item {
+    private static final String TAG_BOUND_BIN_POS = "BoundSellingBinPos";
+    private static final String TAG_BOUND_BIN_DIMENSION = "BoundSellingBinDimension";
+
     public BankCardItem(Properties properties) {
         super(properties);
+    }
+
+    @Override
+    public InteractionResultHolder<ItemStack> use(Level level, net.minecraft.world.entity.player.Player player, InteractionHand hand) {
+        ItemStack stack = player.getItemInHand(hand);
+        if (!player.isShiftKeyDown()) {
+            return InteractionResultHolder.pass(stack);
+        }
+
+        if (!(player instanceof ServerPlayer serverPlayer)) {
+            return InteractionResultHolder.sidedSuccess(stack, level.isClientSide);
+        }
+
+        if (tryToggleStoredSellingBin(serverPlayer, stack)) {
+            return InteractionResultHolder.sidedSuccess(stack, level.isClientSide);
+        }
+
+        return InteractionResultHolder.consume(stack);
     }
 
     @Override
@@ -36,6 +65,7 @@ public class BankCardItem extends Item {
         tooltip.add(Component.translatable("tooltip.shopcore.bank_card.desc").withStyle(ChatFormatting.GRAY));
         tooltip.add(Component.translatable("tooltip.shopcore.bank_card.bind_hint").withStyle(ChatFormatting.DARK_GRAY));
         tooltip.add(Component.translatable("tooltip.shopcore.bank_card.unbind_hint").withStyle(ChatFormatting.DARK_GRAY));
+        tooltip.add(Component.translatable("tooltip.shopcore.bank_card.notification_hint").withStyle(ChatFormatting.DARK_GRAY));
         appendTaxTooltip(tooltip);
     }
 
@@ -52,15 +82,18 @@ public class BankCardItem extends Item {
     protected InteractionResult useOnSellingBin(UseOnContext context, boolean taxExempt) {
         Level level = context.getLevel();
         if (!(level.getBlockState(context.getClickedPos()).getBlock() instanceof SellingBinBlock)) {
-            return InteractionResult.PASS;
-        }
+            if (context.getPlayer() != null && context.getPlayer().isShiftKeyDown()) {
+                if (!level.isClientSide && context.getPlayer() instanceof ServerPlayer serverPlayer) {
+                    tryToggleStoredSellingBin(serverPlayer, context.getItemInHand());
+                }
+                return level.isClientSide ? InteractionResult.SUCCESS : InteractionResult.CONSUME;
+            }
 
-        if (level.isClientSide) {
-            return InteractionResult.SUCCESS;
+            return InteractionResult.PASS;
         }
 
         if (!(context.getPlayer() instanceof ServerPlayer serverPlayer)) {
-            return InteractionResult.PASS;
+            return InteractionResult.SUCCESS;
         }
 
         BlockEntity blockEntity = level.getBlockEntity(context.getClickedPos());
@@ -74,6 +107,7 @@ public class BankCardItem extends Item {
                 return InteractionResult.CONSUME;
             }
 
+            rememberBoundSellingBin(context.getItemInHand(), level, context.getClickedPos());
             serverPlayer.displayClientMessage(Component.translatable("message.shopcore.selling_bin.bind_success").withStyle(ChatFormatting.GREEN), false);
             return InteractionResult.CONSUME;
         }
@@ -84,6 +118,7 @@ public class BankCardItem extends Item {
                 return InteractionResult.CONSUME;
             }
 
+            clearBoundSellingBin(context.getItemInHand());
             serverPlayer.displayClientMessage(Component.translatable("message.shopcore.selling_bin.unbind_success").withStyle(ChatFormatting.GREEN), false);
             return InteractionResult.CONSUME;
         }
@@ -94,5 +129,83 @@ public class BankCardItem extends Item {
         }
 
         return InteractionResult.CONSUME;
+    }
+
+    private boolean tryToggleStoredSellingBin(ServerPlayer serverPlayer, ItemStack stack) {
+        SellingBinBlockEntity sellingBin = getStoredSellingBin(serverPlayer, stack);
+        if (sellingBin == null || !sellingBin.isBoundTo(serverPlayer)) {
+            sellingBin = findOwnedSellingBin(serverPlayer);
+        }
+
+        if (sellingBin == null || !sellingBin.isBoundTo(serverPlayer)) {
+            return false;
+        }
+
+        boolean enabled = sellingBin.toggleTransactionNotification();
+        serverPlayer.displayClientMessage(
+                Component.translatable(enabled
+                                ? "message.shopcore.selling_bin.notification_enabled"
+                                : "message.shopcore.selling_bin.notification_disabled")
+                        .withStyle(enabled ? ChatFormatting.GREEN : ChatFormatting.YELLOW),
+                false
+        );
+        return true;
+    }
+
+    @Nullable
+    private SellingBinBlockEntity findOwnedSellingBin(ServerPlayer serverPlayer) {
+        SellingBinBlockEntity found = null;
+        for (SellingBinBlockEntity candidate : SellingBinBlockEntity.getLoadedInstances()) {
+            if (!candidate.isBoundTo(serverPlayer)) {
+                continue;
+            }
+
+            if (found != null) {
+                return null;
+            }
+            found = candidate;
+        }
+
+        return found;
+    }
+
+    @Nullable
+    private SellingBinBlockEntity getStoredSellingBin(ServerPlayer serverPlayer, ItemStack stack) {
+        CompoundTag tag = stack.getTag();
+        if (tag == null || !tag.contains(TAG_BOUND_BIN_POS) || !tag.contains(TAG_BOUND_BIN_DIMENSION)) {
+            return null;
+        }
+
+        ResourceLocation dimensionLocation = ResourceLocation.tryParse(tag.getString(TAG_BOUND_BIN_DIMENSION));
+        if (dimensionLocation == null) {
+            return null;
+        }
+
+        ServerLevel targetLevel = serverPlayer.getServer().getLevel(ResourceKey.create(Registries.DIMENSION, dimensionLocation));
+        if (targetLevel == null) {
+            return null;
+        }
+
+        BlockEntity blockEntity = targetLevel.getBlockEntity(BlockPos.of(tag.getLong(TAG_BOUND_BIN_POS)));
+        return blockEntity instanceof SellingBinBlockEntity sellingBin ? sellingBin : null;
+    }
+
+    private void rememberBoundSellingBin(ItemStack stack, Level level, BlockPos pos) {
+        CompoundTag tag = stack.getOrCreateTag();
+        tag.putLong(TAG_BOUND_BIN_POS, pos.asLong());
+        tag.putString(TAG_BOUND_BIN_DIMENSION, level.dimension().location().toString());
+    }
+
+    private void clearBoundSellingBin(ItemStack stack) {
+        CompoundTag tag = stack.getTag();
+        if (tag == null) {
+            return;
+        }
+
+        tag.remove(TAG_BOUND_BIN_POS);
+        tag.remove(TAG_BOUND_BIN_DIMENSION);
+        if (tag.isEmpty()) {
+            stack.setTag(null);
+        }
     }
 }

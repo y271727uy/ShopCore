@@ -7,6 +7,7 @@ import com.y271727uy.shopcore.all.ModRecipes;
 import com.y271727uy.shopcore.client.sellingbin.SellingBinClientPriceCache;
 import com.y271727uy.shopcore.gameplay.sellingbin.SellingBinGroupManager;
 import com.y271727uy.shopcore.gameplay.quality.QualityNbt;
+import com.y271727uy.shopcore.integration.sereneseasons.SereneSeasonsCompat;
 import net.minecraft.MethodsReturnNonnullByDefault;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.RegistryAccess;
@@ -28,7 +29,11 @@ import net.minecraftforge.common.crafting.CraftingHelper;
 
 import javax.annotation.Nullable;
 import javax.annotation.ParametersAreNonnullByDefault;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
+import java.util.Objects;
+import java.util.Set;
 
 @MethodsReturnNonnullByDefault
 @ParametersAreNonnullByDefault
@@ -60,7 +65,35 @@ public class SellingBinRecipe implements Recipe<SellingBinRecipe.RecipeInput> {
      */
     public final boolean tradeBalance;
 
-    public SellingBinRecipe(ResourceLocation id, Ingredient input, int inputCount, ItemStack output, @Nullable Integer base, @Nullable Integer max, String group, boolean tradeBalance) {
+    /**
+     * Whether this recipe should use the reverse virtual-stock regression curve
+     * (fast at high stock, slow at low stock).
+     */
+    public final boolean sRegression;
+
+    /**
+     * Optional seasonal economy settings.
+     */
+    public final String season;
+    @Nullable public final Integer seasonBase;
+    @Nullable public final Integer seasonMax;
+    public final boolean seasonOnly;
+
+    public SellingBinRecipe(
+            ResourceLocation id,
+            Ingredient input,
+            int inputCount,
+            ItemStack output,
+            @Nullable Integer base,
+            @Nullable Integer max,
+            String group,
+            boolean tradeBalance,
+            boolean sRegression,
+            String season,
+            @Nullable Integer seasonBase,
+            @Nullable Integer seasonMax,
+            boolean seasonOnly
+    ) {
         this.id = id;
         this.input = input;
         this.inputChoices = input.getItems();
@@ -70,6 +103,11 @@ public class SellingBinRecipe implements Recipe<SellingBinRecipe.RecipeInput> {
         this.max = max;
         this.group = group;
         this.tradeBalance = tradeBalance;
+        this.sRegression = sRegression;
+        this.season = normalizeSeasonId(season);
+        this.seasonBase = seasonBase;
+        this.seasonMax = seasonMax;
+        this.seasonOnly = seasonOnly && !this.season.isEmpty();
     }
 
     @Override
@@ -101,6 +139,64 @@ public class SellingBinRecipe implements Recipe<SellingBinRecipe.RecipeInput> {
         return tradeBalance;
     }
 
+    public boolean isSRegression() {
+        return sRegression;
+    }
+
+    public boolean hasSeason() {
+        return !season.isEmpty();
+    }
+
+    public boolean hasSeasonalPriceRange() {
+        return seasonBase != null && seasonMax != null;
+    }
+
+    public boolean isSeasonOnly() {
+        return seasonOnly && hasSeason();
+    }
+
+    public boolean matchesSeason(@Nullable String currentSeasonId) {
+        return hasSeason() && season.equals(normalizeSeasonId(currentSeasonId));
+    }
+
+    public boolean isInActiveSeason(Level level) {
+        return matchesSeason(SereneSeasonsCompat.getCurrentSeasonId(level).orElse(""));
+    }
+
+    public boolean canSellIn(Level level) {
+        return !isSeasonOnly() || isInActiveSeason(level);
+    }
+
+    public int getConfiguredSeasonalPriceBonus(String currentSeasonId, ResourceLocation priceKey) {
+        if (!hasSeasonalPriceRange() || !matchesSeason(currentSeasonId)) {
+            return 0;
+        }
+
+        int minBonus = Objects.requireNonNull(seasonBase);
+        int maxBonus = Objects.requireNonNull(seasonMax);
+        if (maxBonus <= minBonus) {
+            return minBonus;
+        }
+
+        int range = maxBonus - minBonus + 1;
+        int seed = Objects.hash(id.toString(), season, minBonus, maxBonus, priceKey.toString());
+        return minBonus + Math.floorMod(seed, range);
+    }
+
+    public Set<ResourceLocation> getPriceKeys() {
+        Set<ResourceLocation> priceKeys = new LinkedHashSet<>();
+        for (ItemStack inputChoice : inputChoices) {
+            if (inputChoice.isEmpty()) {
+                continue;
+            }
+            priceKeys.add(getPriceKey(inputChoice));
+        }
+        if (priceKeys.isEmpty()) {
+            priceKeys.add(id);
+        }
+        return priceKeys;
+    }
+
     public ItemStack getPrimaryInputPreview() {
         if (inputChoices.length == 0) {
             return ItemStack.EMPTY;
@@ -128,7 +224,7 @@ public class SellingBinRecipe implements Recipe<SellingBinRecipe.RecipeInput> {
     public boolean matches(RecipeInput container, Level level) {
         ItemStack stack = container.getItem(0);
         if (stack.isEmpty()) return false;
-        return input.test(stack);
+        return input.test(stack) && canSellIn(level);
     }
 
     @Override
@@ -237,6 +333,18 @@ public class SellingBinRecipe implements Recipe<SellingBinRecipe.RecipeInput> {
         return value >= Integer.MAX_VALUE ? Integer.MAX_VALUE : (int) value;
     }
 
+    private static String normalizeSeasonId(@Nullable String rawSeasonId) {
+        if (rawSeasonId == null || rawSeasonId.isBlank()) {
+            return "";
+        }
+
+        String normalized = rawSeasonId.trim().toLowerCase(Locale.ROOT);
+        if ("fall".equals(normalized)) {
+            return "autumn";
+        }
+        return normalized;
+    }
+
     public static class RecipeInput implements Container {
         private final List<ItemStack> stacks;
 
@@ -332,6 +440,11 @@ public class SellingBinRecipe implements Recipe<SellingBinRecipe.RecipeInput> {
             }
 
             boolean tradeBalance = GsonHelper.getAsBoolean(json, "trade_balance", false);
+            boolean sRegression = GsonHelper.getAsBoolean(json, "s-regression", false);
+            String season = normalizeSeasonId(GsonHelper.getAsString(json, "season", ""));
+            Integer seasonBase = json.has("season_base") ? Math.max(0, GsonHelper.getAsInt(json, "season_base")) : null;
+            Integer seasonMax = json.has("season_max") ? Math.max(0, GsonHelper.getAsInt(json, "season_max")) : null;
+            boolean seasonOnly = GsonHelper.getAsBoolean(json, "season_only", false);
 
             // If only one of base/max is provided, ignore both (as requested: optional and should not crash)
             if ((base == null) != (max == null)) {
@@ -339,7 +452,21 @@ public class SellingBinRecipe implements Recipe<SellingBinRecipe.RecipeInput> {
                 max = null;
             }
 
-            return new SellingBinRecipe(recipeId, input, inputCount, output, base, max, group, tradeBalance);
+            if ((seasonBase == null) != (seasonMax == null)) {
+                seasonBase = null;
+                seasonMax = null;
+            }
+            if (seasonBase != null && seasonMax != null) {
+                seasonMax = Math.max(seasonBase, seasonMax);
+            }
+
+            if (season.isEmpty()) {
+                seasonBase = null;
+                seasonMax = null;
+                seasonOnly = false;
+            }
+
+            return new SellingBinRecipe(recipeId, input, inputCount, output, base, max, group, tradeBalance, sRegression, season, seasonBase, seasonMax, seasonOnly);
         }
 
         @Override
@@ -358,7 +485,17 @@ public class SellingBinRecipe implements Recipe<SellingBinRecipe.RecipeInput> {
 
             String group = buf.readUtf();
             boolean tradeBalance = buf.readBoolean();
-            return new SellingBinRecipe(recipeId, input, inputCount, output, base, max, group, tradeBalance);
+            boolean sRegression = buf.readBoolean();
+            String season = normalizeSeasonId(buf.readUtf());
+            boolean hasSeasonRange = buf.readBoolean();
+            Integer seasonBase = null;
+            Integer seasonMax = null;
+            if (hasSeasonRange) {
+                seasonBase = buf.readVarInt();
+                seasonMax = buf.readVarInt();
+            }
+            boolean seasonOnly = buf.readBoolean();
+            return new SellingBinRecipe(recipeId, input, inputCount, output, base, max, group, tradeBalance, sRegression, season, seasonBase, seasonMax, seasonOnly);
         }
 
         @Override
@@ -376,6 +513,17 @@ public class SellingBinRecipe implements Recipe<SellingBinRecipe.RecipeInput> {
 
             buf.writeUtf(recipe.group);
             buf.writeBoolean(recipe.tradeBalance);
+            buf.writeBoolean(recipe.sRegression);
+            buf.writeUtf(recipe.season);
+
+            boolean hasSeasonRange = recipe.seasonBase != null && recipe.seasonMax != null;
+            buf.writeBoolean(hasSeasonRange);
+            if (hasSeasonRange) {
+                buf.writeVarInt(recipe.seasonBase);
+                buf.writeVarInt(recipe.seasonMax);
+            }
+
+            buf.writeBoolean(recipe.seasonOnly);
         }
     }
 }

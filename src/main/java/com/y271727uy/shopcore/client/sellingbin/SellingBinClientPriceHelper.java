@@ -39,7 +39,8 @@ public final class SellingBinClientPriceHelper {
         ResourceLocation priceKey = recipe.getPriceKey(stack);
         long total = (long) SellingBinClientPriceCache.getFloatingPriceBonus(priceKey)
                 + SellingBinClientPriceCache.getVirtualStockPriceBonus(priceKey)
-                + SellingBinClientPriceCache.getSeasonalPriceBonus(priceKey);
+                + SellingBinClientPriceCache.getSeasonalPriceBonus(priceKey)
+                + SellingBinClientPriceCache.getLongTermPriceBonus(priceKey);
         if (total <= Integer.MIN_VALUE) {
             return Integer.MIN_VALUE;
         }

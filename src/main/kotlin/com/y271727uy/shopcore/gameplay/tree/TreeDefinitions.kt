@@ -11,6 +11,7 @@ import net.minecraft.server.level.ServerLevel
 import net.minecraft.world.level.block.Block
 import net.minecraft.world.level.block.Blocks
 import net.minecraft.world.level.block.state.BlockState
+import net.minecraft.world.level.block.state.properties.BooleanProperty
 import net.minecraft.world.level.block.state.properties.IntegerProperty
 import net.minecraft.world.level.block.state.properties.Property
 import net.minecraft.tags.FluidTags
@@ -171,7 +172,7 @@ object TreeDefinitions {
 			val targetPos = stumpPos.offset(relative.x, relative.y + dy, relative.z)
 			if (level.getBlockState(targetPos).isAir) {
 				val leafState = withBlockstateProperty(leafBlock.defaultBlockState(), baseLeafState)
-				level.setBlockAndUpdate(targetPos, leafState)
+				level.setBlockAndUpdate(targetPos, withBooleanProperty(leafState, "persistent", true))
 			}
 		}
 
@@ -243,7 +244,7 @@ object TreeDefinitions {
 		}
 
 		for (relative in shape.logRelativePos) {
-			val targetPos = stumpPos.offset(relative.x, relative.y + dy, relative.z)
+			val targetPos = stumpPos.offset(relative.x, relative.y, relative.z)
 			if (level.getBlockState(targetPos).block == logBlock) {
 				level.destroyBlock(targetPos, false)
 			}
@@ -355,6 +356,15 @@ object TreeDefinitions {
 
 	private fun withBlockstateProperty(state: BlockState, value: Int): BlockState {
 		val property = state.properties.firstOrNull { it is IntegerProperty && it.name == "blockstate" } as? IntegerProperty ?: return state
+		return try {
+			state.setValue(property, value)
+		} catch (_: IllegalArgumentException) {
+			state
+		}
+	}
+
+	private fun withBooleanProperty(state: BlockState, propertyName: String, value: Boolean): BlockState {
+		val property = state.properties.firstOrNull { it is BooleanProperty && it.name == propertyName } as? BooleanProperty ?: return state
 		return try {
 			state.setValue(property, value)
 		} catch (_: IllegalArgumentException) {

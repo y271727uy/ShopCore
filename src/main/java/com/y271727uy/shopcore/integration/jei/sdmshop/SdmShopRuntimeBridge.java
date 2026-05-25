@@ -1,6 +1,5 @@
 package com.y271727uy.shopcore.integration.jei.sdmshop;
 
-import mezz.jei.api.runtime.IJeiRuntime;
 import net.minecraft.client.Minecraft;
 import net.minecraft.world.item.ItemStack;
 
@@ -12,16 +11,18 @@ import java.util.Objects;
 import java.util.Optional;
 
 public final class SdmShopRuntimeBridge {
-    private static volatile IJeiRuntime jeiRuntime;
+    private static volatile Object jeiRuntime;
 
     private SdmShopRuntimeBridge() {
     }
 
-    public static void setRuntime(IJeiRuntime runtime) {
+    @SuppressWarnings("unused")
+    public static void setRuntime(Object runtime) {
         jeiRuntime = runtime;
     }
 
-    public static IJeiRuntime getRuntime() {
+    @SuppressWarnings("unused")
+    public static Object getRuntime() {
         return jeiRuntime;
     }
 
@@ -46,7 +47,7 @@ public final class SdmShopRuntimeBridge {
     }
 
     public static boolean showInJei(ItemStack stack) {
-        IJeiRuntime runtime = jeiRuntime;
+        Object runtime = jeiRuntime;
         if (runtime == null) {
             return false;
         }

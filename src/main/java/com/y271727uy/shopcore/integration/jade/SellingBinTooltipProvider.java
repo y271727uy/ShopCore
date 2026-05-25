@@ -31,12 +31,12 @@ public enum SellingBinTooltipProvider implements IBlockComponentProvider {
         boolean bound = sellingBin.isBound();
         if (bound) {
             Component accountType = Component.translatable(sellingBin.isTaxExempt()
-                    ? "tooltip.shopcore.jade.selling_bin.account_premium"
-                    : "tooltip.shopcore.jade.selling_bin.account_normal").withStyle(sellingBin.isTaxExempt() ? ChatFormatting.GOLD : ChatFormatting.GREEN);
-            tooltip.add(Component.translatable("tooltip.shopcore.jade.selling_bin.binding_account", accountType).withStyle(ChatFormatting.GRAY));
+                    ? "tooltip.shopcore.bank_card.jade.account_premium"
+                    : "tooltip.shopcore.bank_card.jade.account_normal").withStyle(sellingBin.isTaxExempt() ? ChatFormatting.GOLD : ChatFormatting.GREEN);
+            tooltip.add(Component.translatable("tooltip.shopcore.bank_card.jade.binding_account", accountType).withStyle(ChatFormatting.GRAY));
         } else {
-            Component state = Component.translatable("tooltip.shopcore.jade.selling_bin.unbound").withStyle(ChatFormatting.RED);
-            tooltip.add(Component.translatable("tooltip.shopcore.jade.selling_bin.status", state).withStyle(ChatFormatting.GRAY));
+            Component state = Component.translatable("tooltip.shopcore.bank_card.jade.unbound").withStyle(ChatFormatting.RED);
+            tooltip.add(Component.translatable("tooltip.shopcore.bank_card.jade.status", state).withStyle(ChatFormatting.GRAY));
         }
 
         if (!bound) {
@@ -45,9 +45,9 @@ public enum SellingBinTooltipProvider implements IBlockComponentProvider {
 
         String boundPlayerName = sellingBin.getBoundPlayerName();
         Component playerComponent = (boundPlayerName == null || boundPlayerName.isBlank())
-                ? Component.translatable("tooltip.shopcore.jade.selling_bin.player_unknown")
+                ? Component.translatable("tooltip.shopcore.bank_card.jade.player_unknown")
                 : Component.literal(boundPlayerName);
-        tooltip.add(Component.translatable("tooltip.shopcore.jade.selling_bin.player", playerComponent).withStyle(ChatFormatting.GRAY));
+        tooltip.add(Component.translatable("tooltip.shopcore.bank_card.jade.player", playerComponent).withStyle(ChatFormatting.GRAY));
     }
 }
 

@@ -20,6 +20,7 @@ import net.minecraft.network.protocol.game.ClientboundBlockEntityDataPacket;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.util.Mth;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.MenuProvider;
 import net.minecraft.world.entity.player.Inventory;
@@ -63,6 +64,7 @@ public class SellingBinBlockEntity extends BlockEntity implements MenuProvider {
     @Nullable
     private String boundPlayerName;
     private boolean boundTaxExempt;
+    private boolean transactionNotificationEnabled;
 
     protected final ContainerData dataAccess = new ContainerData() {
         @Override
@@ -101,6 +103,30 @@ public class SellingBinBlockEntity extends BlockEntity implements MenuProvider {
     };
 
     public final LazyOptional<IItemHandler> handlerOptional = LazyOptional.of(() -> itemHandler);
+
+    // Registry of loaded server-side SellingBinBlockEntity instances for debugging/commands
+    private static final java.util.Set<SellingBinBlockEntity> LOADED_INSTANCES = java.util.concurrent.ConcurrentHashMap.newKeySet();
+
+    @Override
+    public void onLoad() {
+        super.onLoad();
+        if (level != null && !level.isClientSide) {
+            LOADED_INSTANCES.add(this);
+        }
+    }
+
+    @Override
+    public void setRemoved() {
+        super.setRemoved();
+        LOADED_INSTANCES.remove(this);
+    }
+
+    /**
+     * Return a snapshot of currently loaded SellingBinBlockEntity instances on the server.
+     */
+    public static java.util.Collection<SellingBinBlockEntity> getLoadedInstances() {
+        return java.util.List.copyOf(LOADED_INSTANCES);
+    }
 
     public SellingBinBlockEntity(BlockPos pos, BlockState state) {
         this(ModBlockEntities.SELLING_BIN.get(), pos, state);
@@ -172,6 +198,17 @@ public class SellingBinBlockEntity extends BlockEntity implements MenuProvider {
         return boundTaxExempt;
     }
 
+    @SuppressWarnings("unused")
+    public boolean isTransactionNotificationEnabled() {
+        return transactionNotificationEnabled;
+    }
+
+    public boolean toggleTransactionNotification() {
+        transactionNotificationEnabled = !transactionNotificationEnabled;
+        syncClientState(worldPosition, getBlockState());
+        return transactionNotificationEnabled;
+    }
+
     @Nullable
     @SuppressWarnings("unused")
     public UUID getBoundPlayerUuid() {
@@ -181,10 +218,6 @@ public class SellingBinBlockEntity extends BlockEntity implements MenuProvider {
     @Nullable
     public String getBoundPlayerName() {
         return boundPlayerName;
-    }
-
-    public boolean bindTo(Player player) {
-        return bindTo(player, false);
     }
 
     public boolean bindTo(Player player, boolean taxExempt) {
@@ -224,6 +257,7 @@ public class SellingBinBlockEntity extends BlockEntity implements MenuProvider {
             tag.putString("BoundPlayerName", boundPlayerName);
         }
         tag.putBoolean("BoundTaxExempt", boundTaxExempt);
+        tag.putBoolean("TransactionNotificationEnabled", transactionNotificationEnabled);
     }
 
     @Override
@@ -241,6 +275,7 @@ public class SellingBinBlockEntity extends BlockEntity implements MenuProvider {
             tag.putString("BoundPlayerName", boundPlayerName);
         }
         tag.putBoolean("BoundTaxExempt", boundTaxExempt);
+        tag.putBoolean("TransactionNotificationEnabled", transactionNotificationEnabled);
         return tag;
     }
 
@@ -261,6 +296,7 @@ public class SellingBinBlockEntity extends BlockEntity implements MenuProvider {
         this.boundPlayerUuid = tag.hasUUID("BoundPlayerUuid") ? tag.getUUID("BoundPlayerUuid") : null;
         this.boundPlayerName = tag.contains("BoundPlayerName") ? tag.getString("BoundPlayerName") : null;
         this.boundTaxExempt = tag.getBoolean("BoundTaxExempt");
+        this.transactionNotificationEnabled = tag.getBoolean("TransactionNotificationEnabled");
     }
 
     @Override
@@ -284,6 +320,7 @@ public class SellingBinBlockEntity extends BlockEntity implements MenuProvider {
         this.boundPlayerUuid = tag.hasUUID("BoundPlayerUuid") ? tag.getUUID("BoundPlayerUuid") : null;
         this.boundPlayerName = tag.contains("BoundPlayerName") ? tag.getString("BoundPlayerName") : null;
         this.boundTaxExempt = tag.getBoolean("BoundTaxExempt");
+        this.transactionNotificationEnabled = tag.getBoolean("TransactionNotificationEnabled");
     }
 
     private void readInventoryTag(CompoundTag tag) {
@@ -365,6 +402,15 @@ public class SellingBinBlockEntity extends BlockEntity implements MenuProvider {
         return original < 0.5f
             ? 4 * original * original * original
             : (float) (1 - Math.pow(-2 * original + 2, 3) / 2);
+    }
+
+    public void runAllRecipesBroadcast(Level level) {
+        if (level.isClientSide) {
+            return;
+        }
+        runAllRecipes(level);
+        setChanged();
+        syncClientState(worldPosition, getBlockState());
     }
 
     private void runAllRecipes(Level level) {
@@ -481,9 +527,23 @@ public class SellingBinBlockEntity extends BlockEntity implements MenuProvider {
                 ? ShopcoreCurrency.increase(onlinePlayer, (double) netAmount)
                 : ShopcoreCurrency.increase(boundPlayerUuid, (double) netAmount);
 
-        if (result.success()) return true;
+        boolean success = result.success();
+        if (!success && onlinePlayer != null) {
+            success = ShopcoreCurrency.increase(boundPlayerUuid, (double) netAmount).success();
+        }
 
-        return onlinePlayer != null && ShopcoreCurrency.increase(boundPlayerUuid, (double) netAmount).success();
+        if (success && transactionNotificationEnabled && onlinePlayer instanceof ServerPlayer serverPlayer) {
+            serverPlayer.displayClientMessage(
+                    Component.translatable(
+                            "message.shopcore.selling_bin.revenue_notice",
+                            Component.literal(Long.toString(netAmount))
+                                    .withStyle(net.minecraft.ChatFormatting.GOLD)
+                    ).withStyle(net.minecraft.ChatFormatting.GREEN),
+                    false
+            );
+        }
+
+        return success;
     }
 
     @Override
@@ -497,5 +557,4 @@ public class SellingBinBlockEntity extends BlockEntity implements MenuProvider {
         return new SellingBinMenu(ModMenus.SELLING_BIN.get(), containerId, playerInventory, this, dataAccess);
     }
 }
-
 

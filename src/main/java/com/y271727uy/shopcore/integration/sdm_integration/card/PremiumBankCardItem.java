@@ -36,6 +36,7 @@ public class PremiumBankCardItem extends BankCardItem {
         tooltip.add(Component.translatable("tooltip.shopcore.premium_bank_card.desc").withStyle(ChatFormatting.GRAY));
         tooltip.add(Component.translatable("tooltip.shopcore.premium_bank_card.bind_hint").withStyle(ChatFormatting.DARK_GRAY));
         tooltip.add(Component.translatable("tooltip.shopcore.premium_bank_card.unbind_hint").withStyle(ChatFormatting.DARK_GRAY));
+        tooltip.add(Component.translatable("tooltip.shopcore.bank_card.notification_hint").withStyle(ChatFormatting.DARK_GRAY));
         tooltip.add(Component.translatable("tooltip.shopcore.premium_bank_card.tax_free").withStyle(ChatFormatting.GOLD));
     }
 }

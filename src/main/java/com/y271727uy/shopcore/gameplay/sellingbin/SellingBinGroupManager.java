@@ -1,5 +1,6 @@
 package com.y271727uy.shopcore.gameplay.sellingbin;
 
+import com.mojang.logging.LogUtils;
 import com.y271727uy.shopcore.all.ModRecipes;
 import com.y271727uy.shopcore.integration.sereneseasons.SereneSeasonsCompat;
 import com.y271727uy.shopcore.recipe.SellingBinRecipe;
@@ -9,13 +10,16 @@ import net.minecraft.util.RandomSource;
 import net.minecraft.world.item.ItemStack;
 
 import java.util.Collections;
-import java.util.Comparator;
+import java.util.HashSet;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import org.slf4j.Logger;
 
 public final class SellingBinGroupManager {
+    private static final Logger LOGGER = LogUtils.getLogger();
     public static final long DAY_LENGTH_TICKS = 24000L;
     private static final int DAILY_INCREASE_PICK_MIN = 1;
     private static final int DAILY_INCREASE_PICK_MAX = 3;
@@ -28,7 +32,6 @@ public final class SellingBinGroupManager {
     private static final float FIRST_CARRY_CHANCE = 0.25F;
     private static final float SECOND_CARRY_CHANCE = 0.10F;
     private static final Object GROUP_CACHE_LOCK = new Object();
-    private static final Comparator<SellingBinGroup.Entry> ENTRY_ORDER = Comparator.comparing(entry -> entry.priceKey().toString());
 
     private static Map<String, SellingBinGroup> cachedGroups;
 
@@ -88,6 +91,7 @@ public final class SellingBinGroupManager {
         SellingBinMarketSavedData marketData = SellingBinMarketSavedData.get(level);
         long currentDay = Math.floorDiv(level.getDayTime(), DAY_LENGTH_TICKS);
         Map<String, SellingBinGroup> groups = collectGroups(level);
+        Map<ResourceLocation, Boolean> sRegressionByPriceKey = collectSRegressionModes(level);
         String currentSeasonId = SereneSeasonsCompat.getCurrentSeasonId(level).orElse("");
 
         if (!marketData.isInitialized()) {
@@ -96,7 +100,7 @@ public final class SellingBinGroupManager {
             marketData.setLastProcessedDay(currentDay - 1L);
         }
 
-        boolean updatedPrices = refreshSeasonalAdjustments(marketData, groups, currentSeasonId);
+        boolean updatedPrices = refreshSeasonalAdjustments(level, marketData, currentSeasonId);
 
         long lastProcessedDay = marketData.getLastProcessedDay();
         if (currentDay <= lastProcessedDay) {
@@ -110,7 +114,7 @@ public final class SellingBinGroupManager {
             for (SellingBinGroup group : groups.values()) {
                 updatedPrices |= applyDailyGroupAdjustments(level, currentDay, marketData, group, previousFloatingBonuses, previousCarryStages);
             }
-            updatedPrices |= marketData.applyDailyDecay(day);
+            updatedPrices |= marketData.applyDailyDecay(day, sRegressionByPriceKey);
         }
 
         marketData.setLastProcessedDay(currentDay);
@@ -142,36 +146,52 @@ public final class SellingBinGroupManager {
         return groups;
     }
 
-    private static boolean refreshSeasonalAdjustments(SellingBinMarketSavedData marketData, Map<String, SellingBinGroup> groups, String currentSeasonId) {
-        return marketData.setSeasonalPriceBonuses(buildSeasonalBonuses(groups, currentSeasonId));
+    private static Map<ResourceLocation, Boolean> collectSRegressionModes(ServerLevel level) {
+        Map<ResourceLocation, Boolean> sRegressionByPriceKey = new HashMap<>();
+        Set<ResourceLocation> warnedPriceKeys = new HashSet<>();
+
+        for (SellingBinRecipe recipe : level.getRecipeManager().getAllRecipesFor(ModRecipes.SELLING_BIN_RECIPE_TYPE.get())) {
+            if (!recipe.isTradeBalance()) {
+                continue;
+            }
+
+            for (ResourceLocation priceKey : recipe.getPriceKeys()) {
+                Boolean previousValue = sRegressionByPriceKey.putIfAbsent(priceKey, recipe.isSRegression());
+                if (previousValue == null || previousValue == recipe.isSRegression()) {
+                    continue;
+                }
+
+                sRegressionByPriceKey.put(priceKey, false);
+                if (warnedPriceKeys.add(priceKey)) {
+                    LOGGER.warn("Conflicting 's-regression' values detected for selling-bin price key {}. Falling back to false.", priceKey);
+                }
+            }
+        }
+
+        return sRegressionByPriceKey;
     }
 
-    private static Map<ResourceLocation, Integer> buildSeasonalBonuses(Map<String, SellingBinGroup> groups, String currentSeasonId) {
+    private static boolean refreshSeasonalAdjustments(ServerLevel level, SellingBinMarketSavedData marketData, String currentSeasonId) {
+        return marketData.setSeasonalPriceBonuses(buildSeasonalBonuses(level, currentSeasonId));
+    }
+
+    private static Map<ResourceLocation, Integer> buildSeasonalBonuses(ServerLevel level, String currentSeasonId) {
         Map<ResourceLocation, Integer> seasonalBonuses = new HashMap<>();
         if (currentSeasonId == null || currentSeasonId.isBlank()) {
             return seasonalBonuses;
         }
 
-        for (SellingBinSeasonalPriceRules.SeasonalPriceRule rule : SellingBinSeasonalPriceRules.rules()) {
-            if (!rule.matchesSeason(currentSeasonId)) {
+        for (SellingBinRecipe recipe : level.getRecipeManager().getAllRecipesFor(ModRecipes.SELLING_BIN_RECIPE_TYPE.get())) {
+            if (!recipe.matchesSeason(currentSeasonId)) {
                 continue;
             }
 
-            SellingBinGroup group = groups.get(rule.groupName());
-            if (group == null || group.isEmpty()) {
-                continue;
-            }
-
-            List<SellingBinGroup.Entry> entries = group.getEntries();
-            entries.sort(ENTRY_ORDER);
-            int selectedCount = Math.min(rule.count(), entries.size());
-            for (int i = 0; i < selectedCount; i++) {
-                SellingBinGroup.Entry entry = entries.get(i);
-                int bonus = rule.bonusFor(entry.priceKey());
+            for (ResourceLocation priceKey : recipe.getPriceKeys()) {
+                int bonus = recipe.getConfiguredSeasonalPriceBonus(currentSeasonId, priceKey);
                 if (bonus <= 0) {
                     continue;
                 }
-                seasonalBonuses.merge(entry.priceKey(), bonus, SellingBinGroupManager::mergeBonus);
+                seasonalBonuses.merge(priceKey, bonus, SellingBinGroupManager::mergeBonus);
             }
         }
 

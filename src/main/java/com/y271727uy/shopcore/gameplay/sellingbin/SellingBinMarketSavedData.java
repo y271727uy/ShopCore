@@ -247,7 +247,7 @@ public final class SellingBinMarketSavedData extends SavedData {
 
 
 
-    boolean applyDailyDecay(long currentDay) {
+    boolean applyDailyDecay(long currentDay, Map<ResourceLocation, Boolean> sRegressionByPriceKey) {
         if (virtualStockByItem.isEmpty() && legacyRByPriceKey.isEmpty()) {
             return false;
         }
@@ -256,7 +256,8 @@ public final class SellingBinMarketSavedData extends SavedData {
         Map<ResourceLocation, Integer> nextStocks = new HashMap<>(virtualStockByItem.size());
         for (Map.Entry<ResourceLocation, Integer> entry : virtualStockByItem.entrySet()) {
             int currentStock = normalizeVirtualStock(entry.getValue());
-            int nextStock = decayVirtualStock(currentStock);
+            boolean sRegression = sRegressionByPriceKey.getOrDefault(entry.getKey(), false);
+            int nextStock = decayVirtualStock(currentStock, sRegression);
             if (nextStock > 0) {
                 nextStocks.put(entry.getKey(), nextStock);
             }
@@ -506,20 +507,32 @@ public final class SellingBinMarketSavedData extends SavedData {
         return (int) Math.min(MAX_LONG_TERM_R, rarityValue);
     }
 
-    private static int decayVirtualStock(int stock) {
+    static int decayVirtualStock(int stock, boolean sRegression) {
         if (stock <= NEAR_ZERO_CUTOFF) {
             return 0;
         }
 
         int decayPercent;
-        if (stock >= 300) {
-            decayPercent = 5;
-        } else if (stock >= 200) {
-            decayPercent = 10;
-        } else if (stock >= 100) {
-            decayPercent = 20;
+        if (sRegression) {
+            if (stock >= 300) {
+                decayPercent = 35;
+            } else if (stock >= 200) {
+                decayPercent = 20;
+            } else if (stock >= 100) {
+                decayPercent = 10;
+            } else {
+                decayPercent = 5;
+            }
         } else {
-            decayPercent = 35;
+            if (stock >= 300) {
+                decayPercent = 5;
+            } else if (stock >= 200) {
+                decayPercent = 10;
+            } else if (stock >= 100) {
+                decayPercent = 20;
+            } else {
+                decayPercent = 35;
+            }
         }
 
         int nextStock = (stock * (100 - decayPercent)) / 100;
