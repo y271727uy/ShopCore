@@ -41,3 +41,104 @@ Use `com.y271727uy.shopcore.api.economic.ShopcoreCurrency` for common actions:
 
 The adapter resolves the helper methods reflectively so it can tolerate small API differences between SDM Economy releases.
 
+**出货箱数据结构如下:**
+
+>{    
+"type": "shopcore:selling_bin",     
+"input": {       
+"item": "minecraft:apple",     
+"count": 5     
+},    
+"output": {     
+"item": "list:copper_gt_credit"     
+},   
+"base": 1,    
+"max": 3,     
+"group": "crop",       
+"trade_balance": true,       
+"s-regression": false,       
+"season":"winter",   
+"season_base": 1,     
+"season_max": 3,   
+"season_only": false     
+>}
+
+### type
+- **类型**：`String`
+- **必填**：是
+- **约束**：固定值 `shopcore:selling_bin`
+- **说明**：数据包类型标识符
+
+### input
+- **类型**：`Object`
+- **必填**：是
+- **子字段**：
+    - `item`（`String`，必填）：物品 ID 或 Tag，支持命名空间格式（如 `minecraft:apple`）
+    - `count`（`Integer`，必填）：交易数量，必须为正整数
+- **说明**：输入物品配置，支持 `item` 字段的同时也支持 `tag` 字段
+
+**Quality 作物兼容**    
+由 ShopCore 独立实现的 Quality 作物 (带有品质的作物) 已内置兼容，无需单独配置。  
+由于 ShopCore 独立实现了 Quality 作物支持，因此不内置 Quality Food 和 Quality Crops 模组的兼容，也不会主动兼容这两个模组。如需使用这些模组的物品，请在数据包中自行配置。
+
+### output
+- **类型**：`Object`
+- **必填**：是
+- **子字段**：
+    - `item`（`String`，必填）：输出物品 ID 或 list 的物品 ID（如 `list:copper_gt_credit`）
+- **说明**：输出物品配置
+
+### base
+- **类型**：`Number`
+- **必填**：是
+- **约束**：必须为正数，不得为零或负数
+- **说明**：物品的基础售价
+
+### max
+- **类型**：`Number`
+- **必填**：是
+- **约束**：必须为正数，不得为零或负数
+- **说明**：物品的最大售价
+
+### group
+- **类型**：`String`
+- **必填**：否
+- **说明**：价格浮动与继承的核心字段。若未填写，则无法进行价格浮动、季节经济与继承
+
+### trade_balance
+- **类型**：`Boolean`
+- **必填**：否
+- **默认值**：`false`
+- **说明**：贸易平衡模块开关。通过引入 S-R 回归来实现：短期内出售多则降价，反之则涨价。`true` 表示启用贸易平衡
+
+### s-regression
+- **类型**：`Boolean`
+- **必填**：否
+- **默认值**：`false`
+- **说明**：S 回归方向控制。`false` 表示正回归（S 回归速度越来越快）；`true` 表示反回归（S 回归速度越来越慢）
+
+### season
+- **类型**：`String`
+- **必填**：否
+- **说明**：指定该物品会在哪一个季节涨价
+
+**季节机制说明**     
+目前仅支持季节涨价机制，暂不会添加非合法季节降价的机制。
+
+### season_only
+- **类型**：`Boolean`
+- **必填**：否
+- **默认值**：`false`
+- **说明**：季节独占开关。`true` 表示该物品只在指定季节出售
+
+### season_base
+- **类型**：`Number`
+- **必填**：否
+- **约束**：必须为正数，不得为零或负数
+- **说明**：季节物品的基础价格加成
+
+### season_max
+- **类型**：`Number`
+- **必填**：否
+- **约束**：必须为正数，不得为零或负数
+- **说明**：季节物品的最大价格加成
