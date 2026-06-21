@@ -1,4 +1,4 @@
-package com.y271727uy.shopcore.integration.sdm_integration.card;
+package com.y271727uy.shopcore.integration.sdm.card;
 
 import com.y271727uy.shopcore.block.SellingBinBlock;
 import com.y271727uy.shopcore.block.entity.SellingBinBlockEntity;

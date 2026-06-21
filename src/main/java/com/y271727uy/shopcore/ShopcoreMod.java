@@ -8,7 +8,7 @@ import com.y271727uy.shopcore.all.ModMenus;
 import com.y271727uy.shopcore.all.ModRecipes;
 import com.y271727uy.shopcore.economic.ShopcoreEconomicBootstrap;
 import com.y271727uy.shopcore.network.ModMessages;
-import com.y271727uy.shopcore.economic.shop_menu.MenuCreate;
+import com.y271727uy.shopcore.economic.shopmenu.TooltipMenuCreate;
 import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.event.server.ServerStartingEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
@@ -49,8 +49,8 @@ public class ShopcoreMod {
         @SubscribeEvent
         public static void commonSetup(final FMLCommonSetupEvent event) {
         event.enqueueWork(ShopcoreEconomicBootstrap::bootstrap);
-        event.enqueueWork(MenuCreate::clear);
-        event.enqueueWork(MenuCreate::registerAll);
+        event.enqueueWork(TooltipMenuCreate::clear);
+        event.enqueueWork(TooltipMenuCreate::registerAll);
         LOGGER.info("ShopCore economic system initialized");
         }
     }

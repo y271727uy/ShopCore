@@ -1,4 +1,4 @@
-package com.y271727uy.shopcore.integration.sdm_integration.card;
+package com.y271727uy.shopcore.integration.sdm.card;
 
 import net.minecraft.ChatFormatting;
 import net.minecraft.MethodsReturnNonnullByDefault;

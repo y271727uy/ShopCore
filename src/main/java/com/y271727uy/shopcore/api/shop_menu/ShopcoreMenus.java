@@ -1,8 +1,8 @@
 package com.y271727uy.shopcore.api.shop_menu;
 
-import com.y271727uy.shopcore.economic.shop_menu.MenuBinding;
-import com.y271727uy.shopcore.economic.shop_menu.MenuCreate;
-import com.y271727uy.shopcore.economic.shop_menu.MenuDefinition;
+import com.y271727uy.shopcore.economic.shopmenu.MenuBinding;
+import com.y271727uy.shopcore.economic.shopmenu.TooltipMenuCreate;
+import com.y271727uy.shopcore.economic.shopmenu.MenuDefinition;
 import net.minecraft.world.item.ItemStack;
 
 import java.util.List;
@@ -13,17 +13,17 @@ public final class ShopcoreMenus {
 	public static final MenuProvider PROVIDER = new MenuProvider() {
 		@Override
 		public Optional<String> getBoundMenuId(Object target) {
-			return MenuCreate.getBoundMenuId(target);
+			return TooltipMenuCreate.getBoundMenuId(target);
 		}
 
 		@Override
 		public boolean canAccept(Object target, ItemStack stack) {
-			return MenuCreate.canAccept(target, stack);
+			return TooltipMenuCreate.canAccept(target, stack);
 		}
 
 		@Override
 		public List<ItemStack> getCandidateItems(String menuId) {
-			return MenuCreate.getCandidateItems(menuId);
+			return TooltipMenuCreate.getCandidateItems(menuId);
 		}
 	};
 
@@ -31,15 +31,15 @@ public final class ShopcoreMenus {
 	}
 
 	public static MenuDefinition registerMenu(String menuId, String tagId) {
-		return MenuCreate.registerMenu(menuId, tagId);
+		return TooltipMenuCreate.registerMenu(menuId, tagId);
 	}
 
 	public static void bindMenu(Object target, String menuId) {
-		MenuCreate.bindMenu(target, menuId);
+		TooltipMenuCreate.bindMenu(target, menuId);
 	}
 
 	public static void unbindMenu(Object target) {
-		MenuCreate.unbindMenu(target);
+		TooltipMenuCreate.unbindMenu(target);
 	}
 
 	public static Optional<String> getBoundMenuId(Object target) {
@@ -56,7 +56,7 @@ public final class ShopcoreMenus {
 	}
 
 	public static boolean canAccept(String menuId, ItemStack stack) {
-		return MenuCreate.canAccept(menuId, stack);
+		return TooltipMenuCreate.canAccept(menuId, stack);
 	}
 
 	public static List<ItemStack> getCandidateItems(String menuId) {
@@ -64,7 +64,7 @@ public final class ShopcoreMenus {
 	}
 
 	public static Optional<MenuDefinition> getMenu(String menuId) {
-		return MenuCreate.getMenu(menuId);
+		return TooltipMenuCreate.getMenu(menuId);
 	}
 }
 

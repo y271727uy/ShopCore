@@ -214,6 +214,7 @@ dependencies {
     modImplementation("maven.modrinth:seasonhud:1.20.1-1.13.17")
     modImplementation("maven.modrinth:glitchcore:0.0.1.1")
     modImplementation("maven.modrinth:serene-seasons:YXTfAkOf")
+    modImplementation("curse.maven:ftb-teams-forge-404468:7499810")
 
     modImplementation("maven.modrinth:kotlin-for-forge:Zsh14XeQ")
 

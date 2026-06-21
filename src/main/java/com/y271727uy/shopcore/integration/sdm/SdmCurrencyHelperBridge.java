@@ -1,4 +1,4 @@
-package com.y271727uy.shopcore.integration.sdm_integration;
+package com.y271727uy.shopcore.integration.sdm;
 
 import com.y271727uy.shopcore.economic.CurrencyDenomination;
 import com.y271727uy.shopcore.economic.CurrencyOperationResult;

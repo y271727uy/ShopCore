@@ -2,8 +2,8 @@ package com.y271727uy.shopcore.all;
 
 import com.y271727uy.shopcore.ShopcoreMod;
 import com.y271727uy.shopcore.item.GlowingItem;
-import com.y271727uy.shopcore.integration.sdm_integration.card.BankCardItem;
-import com.y271727uy.shopcore.integration.sdm_integration.card.PremiumBankCardItem;
+import com.y271727uy.shopcore.integration.sdm.card.BankCardItem;
+import com.y271727uy.shopcore.integration.sdm.card.PremiumBankCardItem;
 import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.Item;
 import net.minecraftforge.eventbus.api.IEventBus;

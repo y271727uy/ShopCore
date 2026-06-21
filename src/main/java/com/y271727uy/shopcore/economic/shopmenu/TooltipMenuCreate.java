@@ -1,4 +1,4 @@
-package com.y271727uy.shopcore.economic.shop_menu;
+package com.y271727uy.shopcore.economic.shopmenu;
 
 import com.y271727uy.shopcore.economic.PriceRegistry;
 import net.minecraft.world.item.Item;
@@ -19,11 +19,11 @@ import java.util.Optional;
  * Menus are defined by an id and one item tag.
  * Future block entities can bind themselves to a menu id through this class or the ShopcoreMenus API.
  */
-public final class MenuCreate {
+public final class TooltipMenuCreate {
 	private static final Map<String, MenuDefinition> MENUS = new LinkedHashMap<>();
 	private static final Map<Object, String> BOUND_MENUS = new IdentityHashMap<>();
 
-	private MenuCreate() {
+	private TooltipMenuCreate() {
 	}
 
 	public static void clear() {

@@ -1,4 +1,4 @@
-package com.y271727uy.shopcore.economic.shop_menu;
+package com.y271727uy.shopcore.economic.shopmenu;
 
 /**
  * Legacy placeholder. Menu initialization is handled directly by ShopcoreMod.

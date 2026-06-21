@@ -1,4 +1,4 @@
-package com.y271727uy.shopcore.economic.shop_menu;
+package com.y271727uy.shopcore.economic.shopmenu;
 
 import net.minecraft.tags.TagKey;
 import net.minecraft.world.item.Item;
