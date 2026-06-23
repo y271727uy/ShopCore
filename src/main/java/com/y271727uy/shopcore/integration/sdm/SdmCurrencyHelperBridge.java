@@ -1,7 +1,7 @@
 package com.y271727uy.shopcore.integration.sdm;
 
-import com.y271727uy.shopcore.economic.CurrencyDenomination;
-import com.y271727uy.shopcore.economic.CurrencyOperationResult;
+import com.y271727uy.shopcore.economic.currency.CurrencyDenomination;
+import com.y271727uy.shopcore.economic.currency.CurrencyOperationResult;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.minecraftforge.server.ServerLifecycleHooks;

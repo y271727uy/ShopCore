@@ -30,6 +30,12 @@ public class ModMessages {
                 .decoder(SellingBinPriceSyncS2CPacket::decode)
                 .consumerMainThread(SellingBinPriceSyncS2CPacket::handle)
                 .add();
+
+        net.messageBuilder(OrderPromptScreenS2CPacket.class, id(), NetworkDirection.PLAY_TO_CLIENT)
+                .encoder(OrderPromptScreenS2CPacket::encode)
+                .decoder(OrderPromptScreenS2CPacket::decode)
+                .consumerMainThread(OrderPromptScreenS2CPacket::handle)
+                .add();
     }
 
     public static SimpleChannel get() {

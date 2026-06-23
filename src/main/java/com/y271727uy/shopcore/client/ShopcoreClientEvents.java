@@ -4,6 +4,8 @@ import com.mojang.datafixers.util.Either;
 import com.y271727uy.shopcore.ShopcoreMod;
 import com.y271727uy.shopcore.all.ModBlockEntities;
 import com.y271727uy.shopcore.all.ModMenus;
+import com.y271727uy.shopcore.client.order.OrderPromptClientState;
+import com.y271727uy.shopcore.client.order.OrderPromptHudRenderer;
 import com.y271727uy.shopcore.client.sellingbin.SellingBinClientPriceCache;
 import com.y271727uy.shopcore.client.sellingbin.SellingBinClientPriceHelper;
 import com.y271727uy.shopcore.client.render.blockentity.SellingBinBlockEntityRenderer;
@@ -16,6 +18,7 @@ import net.minecraft.client.gui.screens.MenuScreens;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.client.event.ClientPlayerNetworkEvent;
 import net.minecraftforge.client.event.RegisterClientTooltipComponentFactoriesEvent;
+import net.minecraftforge.client.event.RenderGuiOverlayEvent;
 import net.minecraftforge.client.event.RenderTooltipEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
@@ -70,8 +73,14 @@ public final class ShopcoreClientEvents {
         }
 
         @SubscribeEvent
+        public static void onRenderGuiOverlay(RenderGuiOverlayEvent.Post event) {
+            OrderPromptHudRenderer.render(event.getGuiGraphics());
+        }
+
+        @SubscribeEvent
         public static void onClientLoggingOut(ClientPlayerNetworkEvent.LoggingOut event) {
             SellingBinClientPriceCache.clear();
+            OrderPromptClientState.clear();
         }
     }
 }

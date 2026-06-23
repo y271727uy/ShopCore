@@ -1,8 +1,8 @@
 package com.y271727uy.shopcore.integration.jei.sdmshop;
 
 import com.mojang.logging.LogUtils;
-import com.y271727uy.shopcore.economic.CurrencyDenomination;
-import com.y271727uy.shopcore.economic.Price;
+import com.y271727uy.shopcore.economic.currency.CurrencyDenomination;
+import com.y271727uy.shopcore.economic.price.Price;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.Tag;

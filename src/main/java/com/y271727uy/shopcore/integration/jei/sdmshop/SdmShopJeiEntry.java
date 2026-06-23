@@ -1,6 +1,6 @@
 package com.y271727uy.shopcore.integration.jei.sdmshop;
 
-import com.y271727uy.shopcore.economic.Price;
+import com.y271727uy.shopcore.economic.price.Price;
 import net.minecraft.world.item.ItemStack;
 
 import java.util.Objects;

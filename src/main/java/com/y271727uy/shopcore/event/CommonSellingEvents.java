@@ -1,6 +1,6 @@
 package com.y271727uy.shopcore.event;
 
-import com.y271727uy.shopcore.economic.micromachinelearning.helper.PriceAdjustmentResult;
+import com.y271727uy.shopcore.economic.algorithm.micromachinelearning.helper.PriceAdjustmentResult;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;

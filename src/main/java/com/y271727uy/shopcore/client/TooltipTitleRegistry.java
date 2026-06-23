@@ -1,6 +1,6 @@
 package com.y271727uy.shopcore.client;
 
-import com.y271727uy.shopcore.economic.PriceRegistry;
+import com.y271727uy.shopcore.economic.price.PriceRegistry;
 import net.minecraft.tags.TagKey;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;

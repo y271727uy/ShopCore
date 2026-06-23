@@ -48,9 +48,9 @@ public final class CommandEvents {
         // Send feedback message
         final int resultCount = processedCount;
         if (resultCount > 0) {
-            source.sendSuccess(() -> Component.literal("§aExecuted recipes on " + resultCount + " selling bin(s)"), true);
+            source.sendSuccess(() -> Component.translatable("command.shopcore.sellingbin.sell.success", resultCount), true);
         } else {
-            source.sendSuccess(() -> Component.literal("§cNo selling bins found"), true);
+            source.sendSuccess(() -> Component.translatable("command.shopcore.sellingbin.sell.not_found"), true);
         }
         
         return processedCount;

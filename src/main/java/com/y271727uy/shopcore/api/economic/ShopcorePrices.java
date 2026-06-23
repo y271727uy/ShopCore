@@ -1,7 +1,7 @@
 package com.y271727uy.shopcore.api.economic;
 
-import com.y271727uy.shopcore.economic.Price;
-import com.y271727uy.shopcore.economic.PriceRegistry;
+import com.y271727uy.shopcore.economic.price.Price;
+import com.y271727uy.shopcore.economic.price.PriceRegistry;
 import net.minecraft.world.item.ItemStack;
 
 public final class ShopcorePrices {

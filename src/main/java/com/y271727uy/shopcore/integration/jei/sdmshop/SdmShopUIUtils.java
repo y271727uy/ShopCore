@@ -30,7 +30,7 @@ public final class SdmShopUIUtils {
             return;
         }
 
-        minecraft.player.displayClientMessage(Component.literal("SDM shop entry: " + entry.shopName()), false);
+        minecraft.player.displayClientMessage(Component.translatable("message.shopcore.sdm_shop.entry", entry.shopName()), false);
     }
 
     public static String formatPrice(int price, String currency) {

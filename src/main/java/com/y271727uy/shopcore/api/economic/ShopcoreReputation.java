@@ -1,7 +1,7 @@
 package com.y271727uy.shopcore.api.economic;
 
-import com.y271727uy.shopcore.economic.CheckoutInput;
-import com.y271727uy.shopcore.economic.Price;
+import com.y271727uy.shopcore.economic.checkout.CheckoutInput;
+import com.y271727uy.shopcore.economic.price.Price;
 import net.minecraft.world.item.ItemStack;
 
 import java.util.List;

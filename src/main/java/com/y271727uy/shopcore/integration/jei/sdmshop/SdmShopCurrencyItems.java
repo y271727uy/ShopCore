@@ -1,6 +1,6 @@
 package com.y271727uy.shopcore.integration.jei.sdmshop;
 
-import com.y271727uy.shopcore.economic.CurrencyDenomination;
+import com.y271727uy.shopcore.economic.currency.CurrencyDenomination;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
 import net.minecraftforge.registries.ForgeRegistries;

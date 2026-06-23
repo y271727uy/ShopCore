@@ -6,9 +6,10 @@ import com.y271727uy.shopcore.all.ModBlockEntities;
 import com.y271727uy.shopcore.all.ModItem;
 import com.y271727uy.shopcore.all.ModMenus;
 import com.y271727uy.shopcore.all.ModRecipes;
-import com.y271727uy.shopcore.economic.ShopcoreEconomicBootstrap;
+import com.y271727uy.shopcore.economic.bootstrap.ShopcoreEconomicBootstrap;
 import com.y271727uy.shopcore.network.ModMessages;
-import com.y271727uy.shopcore.economic.shopmenu.TooltipMenuCreate;
+import com.y271727uy.shopcore.core.shop.shopmenu.TooltipMenuCreate;
+import com.y271727uy.shopcore.text.TestShopRegistry;
 import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.event.server.ServerStartingEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
@@ -32,6 +33,7 @@ public class ShopcoreMod {
         ModItem.register(modEventBus);
         ModMenus.register(modEventBus);
         ModRecipes.register(modEventBus);
+        TestShopRegistry.register(modEventBus);
         ModMessages.register();
         MinecraftForge.EVENT_BUS.register(this);
     }

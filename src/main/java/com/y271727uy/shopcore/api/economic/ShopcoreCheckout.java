@@ -1,11 +1,11 @@
 package com.y271727uy.shopcore.api.economic;
 
-import com.y271727uy.shopcore.economic.CheckoutInput;
-import com.y271727uy.shopcore.economic.CheckoutResult;
-import com.y271727uy.shopcore.economic.CurrencyStackFactory;
-import com.y271727uy.shopcore.economic.CustomerCheckout;
-import com.y271727uy.shopcore.economic.DefaultCurrencyStackFactory;
-import com.y271727uy.shopcore.economic.Price;
+import com.y271727uy.shopcore.economic.checkout.CheckoutInput;
+import com.y271727uy.shopcore.economic.checkout.CheckoutResult;
+import com.y271727uy.shopcore.economic.currency.CurrencyStackFactory;
+import com.y271727uy.shopcore.economic.checkout.CustomerCheckout;
+import com.y271727uy.shopcore.economic.currency.DefaultCurrencyStackFactory;
+import com.y271727uy.shopcore.economic.price.Price;
 
 
 public final class ShopcoreCheckout {

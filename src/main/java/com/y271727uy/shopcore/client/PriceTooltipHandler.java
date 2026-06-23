@@ -2,7 +2,7 @@ package com.y271727uy.shopcore.client;
 
 import com.y271727uy.shopcore.ShopcoreMod;
 import com.y271727uy.shopcore.api.economic.ShopcorePrices;
-import com.y271727uy.shopcore.economic.Price;
+import com.y271727uy.shopcore.economic.price.Price;
 import net.minecraft.ChatFormatting;
 import net.minecraft.network.chat.Component;
 import net.minecraftforge.api.distmarker.Dist;

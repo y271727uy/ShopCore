@@ -1,6 +1,6 @@
 package com.y271727uy.shopcore.api.economic;
 
-import com.y271727uy.shopcore.economic.CurrencyOperationResult;
+import com.y271727uy.shopcore.economic.currency.CurrencyOperationResult;
 import com.y271727uy.shopcore.integration.sdm.SdmCurrencyHelperBridge;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
