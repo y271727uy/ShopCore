@@ -68,6 +68,7 @@ public class TestShopBlockEntity extends AbstractShopBlockEntity {
     private static final String CONSUMERS_TAG = "TestConsumers";
     private static final String DEPARTURE_PARTICLES_SHOWN_TAG = "TestDepartureParticlesShown";
     private static final long OVERHEAD_ORDER_WAIT_TICKS = 20L * 2L;
+    private static final long RUNTIME_TICK_INTERVAL = 20L * 5L;
     private static final DemandPoolCatalog DEMAND_POOL_CATALOG = new DemandPoolCatalog();
     private static final ShopOpeningRuleSet OPENING_RULES = ShopOpeningRuleSet.of(
             ResourceLocation.fromNamespaceAndPath(ShopcoreMod.MODID, "test_shop"),
@@ -86,6 +87,7 @@ public class TestShopBlockEntity extends AbstractShopBlockEntity {
     private final List<UUID> consumerIds = new ArrayList<>();
     private ShopRuntimeTickResult lastTickResult;
     private boolean resetTransientConsumersAfterLoad;
+    private boolean forceRuntimeTick = true;
 
     public TestShopBlockEntity(BlockPos pos, BlockState state) {
         super(TestShopRegistry.TEST_SHOP_BLOCK_ENTITY.get(), pos, state);
@@ -95,7 +97,16 @@ public class TestShopBlockEntity extends AbstractShopBlockEntity {
         if (level.isClientSide) {
             return;
         }
-        ShopRuntimeTickResult result = entity.tickShopRuntime(entity.runtimeBridge, new ShopBlockRuntimeBridge.ShopBlockRuntimeTickInput(
+        entity.tickRuntimeIfDue((ServerLevel) level);
+        entity.tickTestConsumers((ServerLevel) level, state);
+    }
+
+    private void tickRuntimeIfDue(ServerLevel level) {
+        if (!forceRuntimeTick && level.getGameTime() % RUNTIME_TICK_INTERVAL != 0L) {
+            return;
+        }
+        forceRuntimeTick = false;
+        lastTickResult = tickShopRuntime(runtimeBridge, new ShopBlockRuntimeBridge.ShopBlockRuntimeTickInput(
                 DEMAND_POOL_CATALOG,
                 OPENING_RULES,
                 Optional.of(CustomerProfiles.COMMON),
@@ -109,14 +120,13 @@ public class TestShopBlockEntity extends AbstractShopBlockEntity {
                 ORDER_TTL_TICKS,
                 level.random
         ));
-        entity.lastTickResult = result;
-        entity.tickTestConsumers((ServerLevel) level, state);
     }
 
     public void toggleOpenRequested() {
         initializeRuntime();
         boolean closing = shopcore$openRequested();
         shopcore$setOpenRequested(!shopcore$openRequested());
+        forceRuntimeTick = true;
         if (closing && level instanceof ServerLevel serverLevel) {
             closeTestShopRuntime(serverLevel);
         }
@@ -458,6 +468,7 @@ public class TestShopBlockEntity extends AbstractShopBlockEntity {
             consumerIds.add(NbtUtils.loadUUID(consumers.get(i)));
         }
         resetTransientConsumersAfterLoad = true;
+        forceRuntimeTick = true;
     }
 
     @Override

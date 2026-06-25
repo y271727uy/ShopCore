@@ -58,8 +58,12 @@ public abstract class AbstractShopBlockEntity extends BlockEntity implements Sho
             ShopBlockRuntimeBridge.ShopBlockRuntimeTickInput input
     ) {
         initializeShopRuntime();
+        ShopInstance previousShop = shopcore$shopInstance();
+        ShopOrderBook previousOrderBook = shopcore$orderBook();
         ShopRuntimeTickResult result = Objects.requireNonNull(runtimeBridge, "runtimeBridge").tick(this, input);
-        setChanged();
+        if (!Objects.equals(previousShop, result.shop()) || !Objects.equals(previousOrderBook, result.orderBook())) {
+            setChanged();
+        }
         return result;
     }
 
