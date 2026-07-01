@@ -1,4 +1,4 @@
-package com.y271727uy.shopcore.economic.algorithm.micromachinelearning.nashequilibrium;
+package com.y271727uy.shopcore.economic.algorithm.nashequilibrium;
 
 /**
  * Tunable constants for the simplified Nash-like price balancer.

@@ -16,7 +16,7 @@ public record MicroPriceAdjustmentConfig(
 ) {
     public static final MicroPriceAdjustmentConfig DEFAULT = new MicroPriceAdjustmentConfig(
             WeightConfig.DEFAULT,
-            false
+            true
     );
 
     public MicroPriceAdjustmentConfig {

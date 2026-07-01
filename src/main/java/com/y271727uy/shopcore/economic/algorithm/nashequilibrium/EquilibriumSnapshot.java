@@ -1,4 +1,4 @@
-package com.y271727uy.shopcore.economic.algorithm.micromachinelearning.nashequilibrium;
+package com.y271727uy.shopcore.economic.algorithm.nashequilibrium;
 
 import java.util.List;
 import java.util.Objects;

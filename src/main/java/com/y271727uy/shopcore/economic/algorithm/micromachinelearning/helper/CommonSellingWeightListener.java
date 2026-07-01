@@ -40,4 +40,23 @@ public final class CommonSellingWeightListener {
     public static MicroPriceAdjustmentHelper<UUID, ResourceLocation> helper() {
         return HELPER;
     }
+
+    public static void learnSuccessfulSale(CommonSellingEvents event) {
+        PriceAdjustmentResult result = event.getPriceAdjustmentResult();
+        if (result == null || !result.modelSelected()) {
+            return;
+        }
+
+        double weightAmount = AMOUNT_POLICY.unitAmountOf(event.getSoldStack()) * event.getQuantity();
+        HELPER.learn(new PriceAdjustmentFeedback(
+                result.afterWeight(),
+                weightAmount,
+                result.multiplier(),
+                successfulSaleScore(result)
+        ));
+    }
+
+    private static double successfulSaleScore(PriceAdjustmentResult result) {
+        return Math.max(0.0D, Math.min(1.0D, 1.0D - result.multiplier()));
+    }
 }

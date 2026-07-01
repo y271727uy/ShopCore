@@ -17,7 +17,7 @@ import com.y271727uy.shopcore.core.order.settlement.OrderSettlementBridgeContext
 import com.y271727uy.shopcore.core.order.settlement.OrderSettlementResult;
 import com.y271727uy.shopcore.core.shop.instance.ShopInstance;
 import com.y271727uy.shopcore.core.shop.runtime.ShopBlockRuntimeHolder;
-import com.y271727uy.shopcore.event.CommonSellingEvents;
+import com.y271727uy.shopcore.economic.algorithm.micromachinelearning.helper.OrderDemandLearning;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.ItemStack;
 
@@ -138,17 +138,17 @@ public final class OrderInteractionService {
             ShopOrder completedOrder
     ) {
         ShopInstance shop = holder.shopcore$shopInstance();
-        ShopOrder pricedOrder = applyCommonSellingPriceAdjustments(player, completedOrder, shop);
+        learnSuccessfulOrderDemand(completedOrder, shop, player.level().getGameTime());
         OrderEvaluation evaluation = OrderEvaluation.of(
-                pricedOrder.asItemListRequest().kind(),
-                pricedOrder.totalDeliveredCount(),
-                pricedOrder.totalRequestedCount(),
+                completedOrder.asItemListRequest().kind(),
+                completedOrder.totalDeliveredCount(),
+                completedOrder.totalRequestedCount(),
                 100.0D,
                 OrderEvaluation.REASON_ACCEPTED
         );
         OrderSettlementResult settlement = OrderSettlementBridge.settle(new OrderSettlementBridgeContext(
                 shop,
-                pricedOrder,
+                completedOrder,
                 evaluation,
                 OrderSettlementBinding.currencyItems(),
                 0.0D
@@ -158,31 +158,10 @@ public final class OrderInteractionService {
         return settlement;
     }
 
-    private static ShopOrder applyCommonSellingPriceAdjustments(
-            ServerPlayer player,
-            ShopOrder completedOrder,
-            ShopInstance shop
-    ) {
-        List<OrderLine> adjustedLines = completedOrder.lines().stream()
-                .map(line -> {
-                    CommonSellingEvents event = CommonSellingEvents.post(
-                            player,
-                            line.requestedItem(),
-                            line.deliveredCount(),
-                            line.unitPrice(),
-                            player.level().getGameTime(),
-                            shop.shopPos(),
-                            shop
-                    );
-                    return new OrderLine(
-                            line.requestedItem(),
-                            line.requestedCount(),
-                            line.deliveredCount(),
-                            event.getAdjustedSellPrice()
-                    );
-                })
-                .toList();
-        return completedOrder.withLines(adjustedLines).refreshDeliveryStatus();
+    private static void learnSuccessfulOrderDemand(ShopOrder completedOrder, ShopInstance shop, long nowTick) {
+        for (OrderLine line : completedOrder.lines()) {
+            OrderDemandLearning.recordSuccessfulOrderLine(shop, line, nowTick);
+        }
     }
 
     private static void giveCurrencyReward(ServerPlayer player, OrderSettlementResult settlement) {

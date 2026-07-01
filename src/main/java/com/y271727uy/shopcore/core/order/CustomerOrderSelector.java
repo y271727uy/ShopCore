@@ -7,6 +7,8 @@ import com.y271727uy.shopcore.core.market.tier.MarketTierConfigs;
 import com.y271727uy.shopcore.core.unlock.FeatureAccessContext;
 import com.y271727uy.shopcore.core.unlock.FeatureAccessService;
 import com.y271727uy.shopcore.core.unlock.FeatureKey;
+import com.y271727uy.shopcore.economic.algorithm.micromachinelearning.routing.BatchOrderCandidateScorer;
+import com.y271727uy.shopcore.economic.algorithm.micromachinelearning.routing.ScoredOrderCandidate;
 import com.y271727uy.shopcore.economic.price.Price;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
@@ -35,10 +37,9 @@ public final class CustomerOrderSelector {
     public Optional<ShopOrder> select(OrderSelectionContext context) {
         Objects.requireNonNull(context, "context");
 
-        List<ScoredCandidate> scored = buildCandidates(context).stream()
-                .map(candidate -> new ScoredCandidate(candidate, scoreWithJitter(context, candidate)))
+        List<ScoredOrderCandidate> scored = scoreCandidates(context, buildCandidates(context)).stream()
                 .filter(candidate -> candidate.score() > 0.0D)
-                .sorted(Comparator.comparingDouble(ScoredCandidate::score).reversed())
+                .sorted(Comparator.comparingDouble(ScoredOrderCandidate::score).reversed())
                 .toList();
 
         if (scored.isEmpty()) {
@@ -54,6 +55,16 @@ public final class CustomerOrderSelector {
                 context.gameTime(),
                 context.orderTtlTicks()
         ));
+    }
+
+    private List<ScoredOrderCandidate> scoreCandidates(OrderSelectionContext context, List<OrderCandidate> candidates) {
+        if (scorer instanceof BatchOrderCandidateScorer batchScorer) {
+            return batchScorer.scoreCandidates(context, candidates);
+        }
+
+        return candidates.stream()
+                .map(candidate -> new ScoredOrderCandidate(candidate, scoreWithJitter(context, candidate)))
+                .toList();
     }
 
     public List<OrderCandidate> buildCandidates(OrderSelectionContext context) {
@@ -120,14 +131,14 @@ public final class CustomerOrderSelector {
         return base * (0.85D + context.random().nextDouble() * 0.30D);
     }
 
-    private ScoredCandidate weightedPick(OrderSelectionContext context, List<ScoredCandidate> candidates) {
-        double total = candidates.stream().mapToDouble(ScoredCandidate::score).sum();
+    private ScoredOrderCandidate weightedPick(OrderSelectionContext context, List<ScoredOrderCandidate> candidates) {
+        double total = candidates.stream().mapToDouble(ScoredOrderCandidate::score).sum();
         if (total <= 0.0D) {
             return candidates.get(0);
         }
 
         double cursor = context.random().nextDouble() * total;
-        for (ScoredCandidate candidate : candidates) {
+        for (ScoredOrderCandidate candidate : candidates) {
             cursor -= candidate.score();
             if (cursor <= 0.0D) {
                 return candidate;
@@ -169,6 +180,4 @@ public final class CustomerOrderSelector {
         return key == null || FeatureAccessService.canUse(context, key).allowed();
     }
 
-    private record ScoredCandidate(OrderCandidate candidate, double score) {
-    }
 }

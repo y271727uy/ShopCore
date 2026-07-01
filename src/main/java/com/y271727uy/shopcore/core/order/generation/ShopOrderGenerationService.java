@@ -7,6 +7,7 @@ import com.y271727uy.shopcore.core.order.ShopListing;
 import com.y271727uy.shopcore.core.order.ShopOrder;
 import com.y271727uy.shopcore.core.shop.diagnostic.ShopDiagnosticCode;
 import com.y271727uy.shopcore.core.shop.tier.ShopTierConfigs;
+import com.y271727uy.shopcore.economic.algorithm.micromachinelearning.helper.OrderDemandLearning;
 
 import java.util.List;
 import java.util.Objects;
@@ -16,7 +17,7 @@ public class ShopOrderGenerationService {
     private final CustomerOrderSelector orderSelector;
 
     public ShopOrderGenerationService() {
-        this(new CustomerOrderSelector());
+        this(new CustomerOrderSelector(OrderDemandLearning.orderCandidateScorer()));
     }
 
     public ShopOrderGenerationService(CustomerOrderSelector orderSelector) {

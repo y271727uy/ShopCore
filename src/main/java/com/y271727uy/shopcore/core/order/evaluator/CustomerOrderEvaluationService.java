@@ -12,6 +12,7 @@ import com.y271727uy.shopcore.core.order.ShopOrder;
 import com.y271727uy.shopcore.core.order.request.ItemListOrderRequest;
 import com.y271727uy.shopcore.core.order.request.OrderRequest;
 import com.y271727uy.shopcore.core.order.request.SingleItemOrderRequest;
+import com.y271727uy.shopcore.economic.algorithm.micromachinelearning.helper.OrderDemandLearning;
 import net.minecraft.world.item.ItemStack;
 
 import java.util.Comparator;
@@ -28,7 +29,7 @@ public final class CustomerOrderEvaluationService {
     private final List<CustomerProfile> customerProfiles;
 
     public CustomerOrderEvaluationService() {
-        this(new CustomerOrderSelector(), DefaultOrderEvaluator.INSTANCE, CustomerProfiles.defaults());
+        this(new CustomerOrderSelector(OrderDemandLearning.orderCandidateScorer()), DefaultOrderEvaluator.INSTANCE, CustomerProfiles.defaults());
     }
 
     public CustomerOrderEvaluationService(
