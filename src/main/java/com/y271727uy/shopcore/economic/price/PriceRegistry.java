@@ -1,11 +1,10 @@
 package com.y271727uy.shopcore.economic.price;
 
-import net.minecraft.core.registries.Registries;
+import com.y271727uy.shopcore.core.util.ItemReferenceResolver;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.tags.TagKey;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
-import net.minecraftforge.registries.ForgeRegistries;
 
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -85,30 +84,15 @@ public final class PriceRegistry {
 	}
 
 	public static Item resolveItem(String itemId) {
-		ResourceLocation id = parseResourceLocation(itemId, false);
-		if (!ForgeRegistries.ITEMS.containsKey(id)) {
-			throw new IllegalArgumentException("Unknown item id: " + itemId);
-		}
-		return Objects.requireNonNull(ForgeRegistries.ITEMS.getValue(id), "Resolved item cannot be null: " + itemId);
+		return ItemReferenceResolver.resolveItem(itemId);
 	}
 
 	public static TagKey<Item> resolveItemTag(String tagId) {
-		ResourceLocation id = parseResourceLocation(tagId, true);
-		return TagKey.create(Registries.ITEM, id);
+		return ItemReferenceResolver.resolveItemTag(tagId);
 	}
 
 	private static ResourceLocation parseResourceLocation(String rawId, boolean allowHashPrefix) {
-		Objects.requireNonNull(rawId, "rawId");
-		String normalized = rawId.trim();
-		if (allowHashPrefix && normalized.startsWith("#")) {
-			normalized = normalized.substring(1);
-		}
-
-		ResourceLocation id = ResourceLocation.tryParse(normalized);
-		if (id == null) {
-			throw new IllegalArgumentException("Invalid resource location: " + rawId);
-		}
-		return id;
+		return ItemReferenceResolver.parseResourceLocation(rawId, allowHashPrefix);
 	}
 }
 

@@ -1,12 +1,10 @@
 package com.y271727uy.shopcore.economic.bootstrap;
 
-import com.y271727uy.shopcore.client.ShopcoreTooltipEntries;
-import com.y271727uy.shopcore.client.TooltipTitleRegistry;
-import com.y271727uy.shopcore.economic.price.PriceRegistry;
-import net.minecraft.world.item.Items;
+import com.y271727uy.shopcore.economic.pricesetting.PriceSetting;
+import com.y271727uy.shopcore.economic.pricesetting.PriceSettingRegistry;
 
 /**
- * Registers built-in economic definitions.
+ * Initializes the economic module and applies the maintained price setting DSL.
  */
 public final class ShopcoreEconomicBootstrap {
 	private static boolean bootstrapped;
@@ -20,9 +18,7 @@ public final class ShopcoreEconomicBootstrap {
 		}
 		bootstrapped = true;
 
-		TooltipTitleRegistry.clear();
-		ShopcoreTooltipEntries.registerAll();
-		PriceRegistry.registerItem(Items.EMERALD, 100, 20, 5);
-		ShopcorePriceEntries.registerAll();
+		PriceSettingRegistry.clear();
+		PriceSetting.registerAll();
 	}
 }

@@ -1,6 +1,7 @@
 package com.y271727uy.shopcore.core.shop.shopmenu;
 
-import com.y271727uy.shopcore.economic.price.PriceRegistry;
+import com.y271727uy.shopcore.core.util.ItemReferenceResolver;
+import com.y271727uy.shopcore.economic.pricesetting.PriceSettingMenus;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraftforge.registries.ForgeRegistries;
@@ -32,7 +33,7 @@ public final class TooltipMenuCreate {
 	}
 
 	public static void registerAll() {
-		registerMenu("menu_one", "#minecraft:logs");
+		// PriceSetting DSL is the authoritative source for maintained menu membership.
 	}
 
 	public static MenuDefinition registerMenu(String menuId, String tagId) {
@@ -40,7 +41,7 @@ public final class TooltipMenuCreate {
 		Objects.requireNonNull(tagId, "tagId");
 
 		String normalizedMenuId = normalizeMenuId(menuId);
-		MenuDefinition definition = new MenuDefinition(normalizedMenuId, PriceRegistry.resolveItemTag(tagId));
+		MenuDefinition definition = new MenuDefinition(normalizedMenuId, ItemReferenceResolver.resolveItemTag(tagId));
 		MENUS.put(normalizedMenuId, definition);
 		return definition;
 	}
@@ -88,12 +89,21 @@ public final class TooltipMenuCreate {
 	public static boolean canAccept(String menuId, ItemStack stack) {
 		Objects.requireNonNull(menuId, "menuId");
 		Objects.requireNonNull(stack, "stack");
+		Optional<List<ItemStack>> configuredMenuItems = PriceSettingMenus.getCandidateItemsIfPresent(menuId);
+		if (configuredMenuItems.isPresent()) {
+			return configuredMenuItems.get().stream()
+					.anyMatch(candidate -> ItemStack.isSameItemSameTags(candidate, stack));
+		}
 		return getMenu(menuId)
 				.map(menu -> menu.matches(stack))
 				.orElse(false);
 	}
 
 	public static List<ItemStack> getCandidateItems(String menuId) {
+		Optional<List<ItemStack>> configuredMenuItems = PriceSettingMenus.getCandidateItemsIfPresent(menuId);
+		if (configuredMenuItems.isPresent()) {
+			return configuredMenuItems.get();
+		}
 		MenuDefinition definition = getMenu(menuId)
 				.orElseThrow(() -> new IllegalArgumentException("Unknown menu id: " + menuId));
 

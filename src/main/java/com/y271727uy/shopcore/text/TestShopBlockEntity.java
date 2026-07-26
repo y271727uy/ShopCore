@@ -11,10 +11,11 @@ import com.y271727uy.shopcore.core.consumer.common.wait.HorizontalQueue;
 import com.y271727uy.shopcore.core.consumer.common.wait.HorizontalQueue.HorizontalQueueContext;
 import com.y271727uy.shopcore.core.consumer.common.wait.HorizontalQueue.HorizontalQueueLayout;
 import com.y271727uy.shopcore.core.consumer.common.wait.QueueConsumerPhase;
-import com.y271727uy.shopcore.core.consumer.minecraft.MinecraftVillagerConsumerActor;
-import com.y271727uy.shopcore.core.consumer.minecraft.MinecraftVillagerConsumerMemory;
-import com.y271727uy.shopcore.core.consumer.minecraft.MinecraftVillagerConsumerNavigator;
-import com.y271727uy.shopcore.core.consumer.minecraft.MinecraftVillagerConsumers;
+import com.github.tartaricacid.touhoulittlemaid.entity.passive.EntityMaid;
+import com.y271727uy.shopcore.core.consumer.maid.TouhouMaidConsumerActor;
+import com.y271727uy.shopcore.core.consumer.maid.TouhouMaidConsumerMemory;
+import com.y271727uy.shopcore.core.consumer.maid.TouhouMaidConsumerNavigator;
+import com.y271727uy.shopcore.core.consumer.maid.TouhouMaidConsumers;
 import com.y271727uy.shopcore.core.market.demand.DemandCategoryKey;
 import com.y271727uy.shopcore.core.market.demand.OrderComplexity;
 import com.y271727uy.shopcore.core.menu.ListingMenuEntry;
@@ -50,7 +51,6 @@ import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.entity.Entity;
-import net.minecraft.world.entity.npc.Villager;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.state.BlockState;
@@ -80,8 +80,8 @@ public class TestShopBlockEntity extends AbstractShopBlockEntity {
 
     private final ShopBlockRuntimeBridge runtimeBridge = new ShopBlockRuntimeBridge();
     private final HorizontalQueue queueBehavior = new HorizontalQueue();
-    private final MinecraftVillagerConsumerNavigator consumerNavigator = new MinecraftVillagerConsumerNavigator();
-    private final MinecraftVillagerConsumerMemory consumerMemory = new MinecraftVillagerConsumerMemory();
+    private final TouhouMaidConsumerNavigator consumerNavigator = new TouhouMaidConsumerNavigator();
+    private final TouhouMaidConsumerMemory consumerMemory = new TouhouMaidConsumerMemory();
     private final OverheadOrderPromptController overheadPromptController =
             new OverheadOrderPromptController(OVERHEAD_ORDER_WAIT_TICKS, Component.literal("\u7b49\u5f85\u4e2d..."));
     private final List<UUID> consumerIds = new ArrayList<>();
@@ -188,7 +188,7 @@ public class TestShopBlockEntity extends AbstractShopBlockEntity {
 
     private void tickTestConsumers(ServerLevel level, BlockState state) {
         resetTransientConsumersAfterLoad(level);
-        List<MinecraftVillagerConsumerActor> actors = resolveConsumers(level);
+        List<TouhouMaidConsumerActor> actors = resolveConsumers(level);
         spawnConsumersForNewOrders(level, state, actors);
         actors = resolveConsumers(level);
         markConsumersWithoutActiveOrdersLeaving(actors);
@@ -206,7 +206,7 @@ public class TestShopBlockEntity extends AbstractShopBlockEntity {
         pruneConsumers(level);
     }
 
-    private void spawnConsumersForNewOrders(ServerLevel level, BlockState state, List<MinecraftVillagerConsumerActor> actors) {
+    private void spawnConsumersForNewOrders(ServerLevel level, BlockState state, List<TouhouMaidConsumerActor> actors) {
         if (shopcore$shopInstance() == null || !shopcore$shopInstance().isOpen() || shopcore$orderBook() == null) {
             return;
         }
@@ -223,11 +223,11 @@ public class TestShopBlockEntity extends AbstractShopBlockEntity {
             if (representedOrders.contains(order.orderId())) {
                 continue;
             }
-            Optional<MinecraftVillagerConsumerActor> spawned = MinecraftVillagerConsumers.spawn(level, spawnPosition);
+            Optional<TouhouMaidConsumerActor> spawned = TouhouMaidConsumers.spawn(level, spawnPosition);
             if (spawned.isEmpty()) {
                 continue;
             }
-            MinecraftVillagerConsumerActor actor = spawned.get();
+            TouhouMaidConsumerActor actor = spawned.get();
             consumerMemory.setOrderId(actor, order.orderId());
             consumerMemory.setShopPos(actor, worldPosition);
             consumerMemory.setJoinedGameTime(actor, order.createdGameTime());
@@ -238,7 +238,7 @@ public class TestShopBlockEntity extends AbstractShopBlockEntity {
         }
     }
 
-    private boolean spawnEntranceClear(HorizontalQueueLayout layout, List<MinecraftVillagerConsumerActor> actors) {
+    private boolean spawnEntranceClear(HorizontalQueueLayout layout, List<TouhouMaidConsumerActor> actors) {
         return actors.stream()
                 .map(layout::toLocal)
                 .noneMatch(local -> local.x >= 7.0D);
@@ -293,8 +293,8 @@ public class TestShopBlockEntity extends AbstractShopBlockEntity {
         };
     }
 
-    private void clearOverheadForLeavingConsumers(List<MinecraftVillagerConsumerActor> actors) {
-        for (MinecraftVillagerConsumerActor actor : actors) {
+    private void clearOverheadForLeavingConsumers(List<TouhouMaidConsumerActor> actors) {
+        for (TouhouMaidConsumerActor actor : actors) {
             QueueConsumerPhase phase = consumerMemory.phase(actor);
             if (phase == QueueConsumerPhase.LEAVING || phase == QueueConsumerPhase.DONE) {
                 if (actor.entity().level() instanceof ServerLevel level) {
@@ -305,14 +305,14 @@ public class TestShopBlockEntity extends AbstractShopBlockEntity {
         }
     }
 
-    private void markConsumersWithoutActiveOrdersLeaving(List<MinecraftVillagerConsumerActor> actors) {
+    private void markConsumersWithoutActiveOrdersLeaving(List<TouhouMaidConsumerActor> actors) {
         if (shopcore$orderBook() == null) {
             return;
         }
         Set<UUID> activeOrders = shopcore$orderBook().activeOrders().stream()
                 .map(ShopOrder::orderId)
                 .collect(Collectors.toSet());
-        for (MinecraftVillagerConsumerActor actor : actors) {
+        for (TouhouMaidConsumerActor actor : actors) {
             Optional<UUID> orderId = consumerMemory.orderId(actor);
             if (orderId.isPresent() && !activeOrders.contains(orderId.get())) {
                 if (actor.entity().level() instanceof ServerLevel level) {
@@ -393,7 +393,7 @@ public class TestShopBlockEntity extends AbstractShopBlockEntity {
                 worldPosition,
                 consumerIds,
                 consumerMemory,
-                entity -> entity instanceof Villager,
+                entity -> entity instanceof EntityMaid,
                 32.0D
         );
     }
@@ -407,12 +407,12 @@ public class TestShopBlockEntity extends AbstractShopBlockEntity {
         }
     }
 
-    private List<MinecraftVillagerConsumerActor> resolveConsumers(ServerLevel level) {
-        List<MinecraftVillagerConsumerActor> actors = new ArrayList<>();
+    private List<TouhouMaidConsumerActor> resolveConsumers(ServerLevel level) {
+        List<TouhouMaidConsumerActor> actors = new ArrayList<>();
         for (UUID consumerId : consumerIds) {
             Entity entity = level.getEntity(consumerId);
-            if (entity instanceof Villager villager && villager.isAlive() && !villager.isRemoved()) {
-                actors.add(MinecraftVillagerConsumers.wrap(villager));
+            if (entity instanceof EntityMaid maid && maid.isAlive() && !maid.isRemoved()) {
+                actors.add(TouhouMaidConsumers.wrap(maid));
             }
         }
         return actors;
@@ -421,7 +421,7 @@ public class TestShopBlockEntity extends AbstractShopBlockEntity {
     private void pruneConsumers(ServerLevel level) {
         consumerIds.removeIf(consumerId -> {
             Entity entity = level.getEntity(consumerId);
-            return !(entity instanceof Villager villager) || !villager.isAlive() || villager.isRemoved();
+            return !(entity instanceof EntityMaid maid) || !maid.isAlive() || maid.isRemoved();
         });
     }
 

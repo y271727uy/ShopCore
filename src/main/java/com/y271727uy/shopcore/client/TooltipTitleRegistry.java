@@ -1,6 +1,6 @@
 package com.y271727uy.shopcore.client;
 
-import com.y271727uy.shopcore.economic.price.PriceRegistry;
+import com.y271727uy.shopcore.core.util.ItemReferenceResolver;
 import net.minecraft.tags.TagKey;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
@@ -9,6 +9,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.function.Predicate;
 
 /**
  * Central registry for special tooltip titles matched by item tag.
@@ -28,7 +29,15 @@ public final class TooltipTitleRegistry {
 	public static void registerTagTitle(String tagId, String translationKey) {
 		Objects.requireNonNull(tagId, "tagId");
 		Objects.requireNonNull(translationKey, "translationKey");
-		ENTRIES.add(new Entry(PriceRegistry.resolveItemTag(tagId), translationKey));
+		TagKey<Item> tag = ItemReferenceResolver.resolveItemTag(tagId);
+		ENTRIES.add(new Entry(stack -> stack.is(tag), translationKey));
+	}
+
+	public static void registerItemTitle(String itemId, String translationKey) {
+		Objects.requireNonNull(itemId, "itemId");
+		Objects.requireNonNull(translationKey, "translationKey");
+		Item item = ItemReferenceResolver.resolveItem(itemId);
+		ENTRIES.add(new Entry(stack -> stack.is(item), translationKey));
 	}
 
 	public static String resolveTitleKey(ItemStack stack) {
@@ -40,14 +49,14 @@ public final class TooltipTitleRegistry {
 		return matchedTitle.orElse(DEFAULT_TITLE_KEY);
 	}
 
-	private record Entry(TagKey<Item> tag, String translationKey) {
+	private record Entry(Predicate<ItemStack> matcher, String translationKey) {
 		private Entry {
-			Objects.requireNonNull(tag, "tag");
+			Objects.requireNonNull(matcher, "matcher");
 			Objects.requireNonNull(translationKey, "translationKey");
 		}
 
 		private boolean matches(ItemStack stack) {
-			return stack.is(tag);
+			return matcher.test(stack);
 		}
 	}
 }

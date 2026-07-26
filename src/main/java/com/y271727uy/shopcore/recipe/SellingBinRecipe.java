@@ -6,7 +6,7 @@ import com.google.gson.JsonParseException;
 import com.y271727uy.shopcore.all.ModRecipes;
 import com.y271727uy.shopcore.client.sellingbin.SellingBinClientPriceCache;
 import com.y271727uy.shopcore.gameplay.sellingbin.SellingBinGroupManager;
-import com.y271727uy.shopcore.gameplay.quality.QualityNbt;
+import com.y271727uy.shopcore.integration.farmerstales.FarmersTalesQualityCompat;
 import com.y271727uy.shopcore.integration.sereneseasons.SereneSeasonsCompat;
 import net.minecraft.MethodsReturnNonnullByDefault;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -264,7 +264,7 @@ public class SellingBinRecipe implements Recipe<SellingBinRecipe.RecipeInput> {
 
     public int rollOutputCount(Level level, ItemStack inputStack) {
         int priceBonus = getPriceBonus(level, inputStack)
-                + QualityNbt.rollPriceBonus(inputStack, level.random);
+                + FarmersTalesQualityCompat.rollPriceBonus(inputStack, level.random);
         int b = getMinOutputCount(priceBonus);
         int m = getMaxOutputCount(priceBonus);
         // inclusive range

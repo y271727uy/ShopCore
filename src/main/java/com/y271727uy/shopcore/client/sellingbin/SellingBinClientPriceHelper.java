@@ -1,9 +1,9 @@
 package com.y271727uy.shopcore.client.sellingbin;
 
 import com.y271727uy.shopcore.all.ModRecipes;
+import com.y271727uy.shopcore.integration.farmerstales.FarmersTalesQualityCompat;
 import com.y271727uy.shopcore.integration.sereneseasons.SereneSeasonsCompat;
 import com.y271727uy.shopcore.recipe.SellingBinRecipe;
-import com.y271727uy.shopcore.gameplay.quality.QualityNbt;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
@@ -124,11 +124,11 @@ public final class SellingBinClientPriceHelper {
     }
 
     private static int getMinQualityBonus(ItemStack stack) {
-        return QualityNbt.getMinPriceBonus(stack);
+        return FarmersTalesQualityCompat.getMinPriceBonus(stack);
     }
 
     private static int getMaxQualityBonus(ItemStack stack) {
-        return QualityNbt.getMaxPriceBonus(stack);
+        return FarmersTalesQualityCompat.getMaxPriceBonus(stack);
     }
 
 }

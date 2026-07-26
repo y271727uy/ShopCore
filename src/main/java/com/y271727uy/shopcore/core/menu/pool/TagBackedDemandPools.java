@@ -4,7 +4,7 @@ import com.y271727uy.shopcore.core.market.demand.DemandCategoryKey;
 import com.y271727uy.shopcore.core.market.demand.OrderComplexity;
 import com.y271727uy.shopcore.core.order.PricingMode;
 import com.y271727uy.shopcore.core.order.ShopListing;
-import com.y271727uy.shopcore.economic.price.PriceRegistry;
+import com.y271727uy.shopcore.core.util.ItemReferenceResolver;
 import net.minecraft.tags.TagKey;
 import net.minecraft.world.item.Item;
 
@@ -23,7 +23,7 @@ public final class TagBackedDemandPools {
             int maxPerOrder,
             int stockCount
     ) {
-        return create(poolKey, PriceRegistry.resolveItemTag(tagId), demandCategory, complexity, maxPerOrder, stockCount);
+        return create(poolKey, ItemReferenceResolver.resolveItemTag(tagId), demandCategory, complexity, maxPerOrder, stockCount);
     }
 
     public static DemandPool create(

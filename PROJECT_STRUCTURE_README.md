@@ -1,6 +1,6 @@
 # ShopCore (Farmer's Shop Core) 项目结构说明书
 
-> 一个 Minecraft 1.20.1 Forge 模组，整合了经济模拟 + 树木种植 + 作物品质三大玩法模块。
+> 一个 Minecraft 1.20.1 Forge 模组，提供经济模拟、商店框架与出货箱玩法。
 
 ---
 
@@ -24,10 +24,6 @@
   - [mixin/ —— 混入注入](#mixin--混入注入)
   - [network/ —— 网络通信](#network--网络通信)
   - [recipe/ —— 配方系统](#recipe--配方系统)
-- [Kotlin 源码 —— 玩法层 (src/main/kotlin)](#kotlin-源码--玩法层-srcmainkotlin)
-  - [gameplay/tree/ —— 树木种植系统](#gameplaytree--树木种植系统)
-  - [gameplay/quality/ —— 作物品质系统](#gameplayquality--作物品质系统)
-  - [integration/jade/ —— Jade 集成](#integrationjade--jade-集成)
 - [资源文件 (src/main/resources)](#资源文件-srcmainresources)
 - [构建文件](#构建文件)
 - [各模块关系图](#各模块关系图)
@@ -36,14 +32,12 @@
 
 ## 顶层源码结构
 
-整个模组分两大语言：
+当前业务源码使用 Java；项目仍保留 Kotlin 构建环境，供后续模块使用：
 
 ```
 src/main/java/    → Java：核心框架层（经济、API、注册、集成桥接）
-src/main/kotlin/  → Kotlin：玩法层（树木种植、作物品质）
+src/main/kotlin/  → Kotlin：当前无业务源码，保留为后续扩展入口
 ```
-
-Java 和 Kotlin 在编译时合并（build.gradle 配置了 `compileJava.dependsOn compileKotlin`），Kotlin 编译后生成 `.class` 给 Java 调用。
 
 ---
 
@@ -79,9 +73,9 @@ MenuCreate.registerAll();               // 注册商店菜单
 
 | 文件 | 注册内容 |
 |------|----------|
-| **ModBlock.java** | 方块: `selling_bin`, `tree_compost`, `tree_stump` |
-| **ModItem.java** | 物品: `selling_bin`(BlockItem), `bank_card`, `premium_bank_card`, `tree_compost`, `tree_stump`, `equals`(调试发光物品) |
-| **ModBlockEntities.java** | 方块实体: `SellingBinBlockEntity`, `TreeCompostBlockEntity`(类型用 `BlockEntity` 而非具体类型), `TreeStumpBlockEntity`(同上) |
+| **ModBlock.java** | 方块: `selling_bin` |
+| **ModItem.java** | 物品: `selling_bin`(BlockItem), `bank_card`, `premium_bank_card`, `equals`(调试发光物品) |
+| **ModBlockEntities.java** | 方块实体: `SellingBinBlockEntity` |
 | **ModMenus.java** | GUI 容器: `SellingBinMenu` + 快捷打开 `open()` |
 | **ModRecipes.java** | 配方类型: `SellingBinRecipe`, 序列化器 `Serializer` |
 | **ModCreativeModeTabContents.java** | 将模组物品放入 `list:list` 创造模式标签页 |
@@ -250,7 +244,7 @@ MenuCreate.registerAll();               // 注册商店菜单
 
 ### gameplay/ —— 游戏玩法（仅 `src/main/java/.../gameplay`）
 
-Java 侧只包含 `sellingbin/` 子模块，`tree/` 和 `quality/` 在 Kotlin 侧。
+只包含 `sellingbin/` 子模块。树木种植和作物品质玩法已迁移至 Farmers-Tales。
 
 | 文件 | 作用 |
 |------|------|
@@ -292,7 +286,14 @@ Java 侧只包含 `sellingbin/` 子模块，`tree/` 和 `quality/` 在 Kotlin �
 
 | 文件 | 作用 |
 |------|------|
-| **SereneSeasonsCompat.java** | 获取当前季节ID、检查季节是否允许树木生长 |
+| **SereneSeasonsCompat.java** | 获取当前季节 ID，供出货箱季节价格规则使用 |
+
+#### integration/farmerstales/ —— Farmers-Tales 集成
+
+| 文件 | 作用 |
+|------|------|
+| **FarmersTalesQualityCompat.java** | 按稳定 NBT 契约读取 `quality1`/`quality2`/`quality3` 与旧版 `quality`，为出货箱计算品质加价；不硬依赖 Farmers-Tales |
+| **FarmersTalesRegistryMigration.java** | Farmers-Tales 已加载时，将旧存档的 `shopcore:tree_compost/tree_stump` 方块、物品与方块实体映射到新命名空间 |
 
 ---
 
@@ -310,8 +311,6 @@ Java 侧只包含 `sellingbin/` 子模块，`tree/` 和 `quality/` 在 Kotlin �
 | 文件 | 注入目标 | 作用 |
 |------|----------|------|
 | **AbstractShopTabMixin.java** | `net.sixik.sdmshoprework.api.shop.AbstractShopTab.createShopEntry` | SDM商店创建条目时触发 `ShopDataLoadedEvent`，刷新 JEI 数据 |
-| **GuiGraphicsQualityOverlayMixin.java** | `GuiGraphics.renderItemDecorations` | 在物品渲染后叠加品质星星图标 |
-| **ItemRendererQualityOverlayMixin.java** | `ItemRenderer.render` | 在世界中渲染物品时叠加品质星星 |
 
 ---
 
@@ -348,85 +347,6 @@ JSON 示例（`data/shopcore/recipes/selling_bin/apple_to_copper_credit.json`）
 
 ---
 
-## Kotlin 源码 —— 玩法层 (src/main/kotlin)
-
-### gameplay/tree/ —— 树木种植系统
-
-完整的自定义树木种植玩法：树坑播种 → 树木生长 → 开花结果。
-
-#### 核心数据
-
-| 文件 | 作用 |
-|------|------|
-| **TreeDefinitions.kt** | 树木定义中心: 3种树形(Shape)、肥料等级、树种映射表(支持 Manors Bounty 13种 + Fruits Delight 3种)、树木创建/清除/叶子状态推进 |
-| **FruitsDelightTreeManager.kt** | Fruits Delight 专用管理器: 精确叶子状态(LEAVES→FLOWERS→FRUITS)、开花/结果 tick 逻辑 |
-| **TreeTickConstants.kt** | `TREE_TICK_INTERVAL_TICKS = 400` (20秒) |
-
-#### 方块
-
-| 文件 | 作用 |
-|------|------|
-| **block/TreeCompostBlock.kt** | 树坑方块: BaseEntityBlock，接受种子播种 |
-| **block/TreeStumpBlock.kt** | 树桩方块: BaseEntityBlock，树木生长后生成，破坏时清除整棵树 |
-
-#### 方块实体
-
-| 文件 | 作用 |
-|------|------|
-| **block/entity/TreeCompostBlockEntity.kt** | 树坑BE: 存储树种/形状/dy/生长倒计时，serverTick 推进生长 |
-| **block/entity/TreeStumpBlockEntity.kt** | 树桩BE: 管理肥力(0-25)/含水量(0-50)/杂枝(0-25)，维护评分(0-100)，开花结果推进 |
-
-#### 事件
-
-| 文件 | 作用 |
-|------|------|
-| **event/TreeCompostEvents.kt** | 破坏树坑时同时破坏上方的树苗 |
-| **event/TreeGrowthEvents.kt** | 骨粉催熟: 拦截对树坑上方树苗的骨粉使用，改为快速成熟 |
-| **event/TreeInteractionEvents.kt** | 右键交互: 骨粉、水瓶、斧头(修剪杂枝) |
-| **event/TreePlacementEvents.kt** | 在树坑上方放置种子: 消耗种子、设置生长计时器 |
-| **event/TreeVanillaGrowthEvents.kt** | 拦截原版树苗生长(防止被管理的树苗自然生长) |
-| **event/EnvironmentVariables/SeasonVariables.kt** | 季节环境变量: 判断树木生长是否允许(春夏可生长) |
-| **event/EnvironmentVariables/GrassVariables.kt** | 草地变量(空壳，仅声明) |
-| **event/EnvironmentVariables/WeaterVariables.kt** | 天气变量(空壳，仅声明) |
-
----
-
-### gameplay/quality/ —— 作物品质系统
-
-独立于 Quality Food/Crops 模组的品质系统，支持 3 档品质（Iron/Gold/Diamond），通过 NBT 标记。
-
-| 文件 | 作用 |
-|------|------|
-| **Quality.kt** | 品质枚举: IRON(1)/GOLD(2)/DIAMOND(3)，每档有价格加成范围 |
-| **QualityNbt.kt** | NBT 读写: 支持 `quality1`/`quality2`/`quality3` 布尔标记 + 旧版 `quality` 整数字段兼容 |
-| **client/QualityOverlayRenderer.kt** | 品质星星渲染: GUI 叠加 + 世界渲染 |
-| **event/harvest/StandardCrop.kt** | 标准作物 (CropBlock): 收获时概率赋予品质 |
-| **event/harvest/BerryHarvestEvents.kt** | 浆果类: 支持 `age`/`berries`/`type=FRUITS` 多种状态的收获检测 |
-| **event/harvest/MDHarvestEvents.kt** | Manors Bounty 作物: 检测 `can_fruit` + `age` 双条件 |
-| **event/harvest/NonStandardCropEvents.kt** | 非标准作物: BreakEvent 时赋予品质 |
-| **util/WhiteList.kt** | 白名单接口 |
-| **util/StandardCropWhitelist.kt** | 标准作物白名单 |
-| **util/BerryFruitHarvestWhitelist.kt** | 浆果类白名单 |
-| **util/NonStandardCropWhitelist.kt** | 非标准作物白名单 |
-| **util/MDWhiteList.kt** | Manors Bounty 白名单 |
-
-品质赋予概率:
-| 品质 | 标准/MD/NonStd | 浆果 |
-|------|----------------|------|
-| IRON | 35% | 25% |
-| GOLD | 10% | 15% |
-| DIAMOND | 5% | 5% |
-
----
-
-### integration/jade/ —— Jade 集成
-
-| 文件 | 作用 |
-|------|------|
-| **provider/TreeStumpTooltipProvider.kt** | 树桩 Jade 信息悬浮窗: 显示肥力/含水/杂枝/维护评分 |
-
----
-
 ## 资源文件 (src/main/resources)
 
 ### 语言文件
@@ -436,25 +356,21 @@ JSON 示例（`data/shopcore/recipes/selling_bin/apple_to_copper_credit.json`）
 | `assets/shopcore/lang/zh_cn.json` | 简体中文(71条) |
 | `assets/shopcore/lang/en_us.json` | 英文(70条) |
 
-涵盖: 价格 tooltip、季节加成、银行卡、出货箱绑定消息、Jade 信息、树桩信息。
+涵盖: 价格 tooltip、季节加成、银行卡、出货箱绑定消息与 Jade 信息。
 
 ### 方块状态 / 模型
 
 | 文件 | 内容 |
 |------|------|
 | `blockstates/selling_bin.json` | 出货箱朝向变体(4方向) |
-| `blockstates/tree_compost.json` | 树坑 |
-| `blockstates/tree_stump.json` | 树桩 |
 | `models/block/selling_bin.json` | 出货箱方块模型 |
-| `models/item/*.json` | 各物品模型: bank_card, premium_bank_card, selling_bin, tree_compost, tree_stump, equals |
+| `models/item/*.json` | 各物品模型: bank_card, premium_bank_card, selling_bin, equals |
 
 ### 战利品表
 
 | 文件 | 方块 |
 |------|------|
 | `loot_tables/blocks/selling_bin.json` | 出货箱 |
-| `loot_tables/blocks/tree_compost.json` | 树坑 |
-| `loot_tables/blocks/tree_stump.json` | 树桩 |
 
 ### 配方
 
@@ -502,7 +418,7 @@ JSON 示例（`data/shopcore/recipes/selling_bin/apple_to_copper_credit.json`）
 
 | 文件 | 作用 |
 |------|------|
-| `build.gradle` | 构建脚本: NeoForged Legacy 2.0.91 + Kotlin 2.2.0 + Lombok |
+| `build.gradle` | 构建脚本: NeoForged Legacy 2.0.91 + Kotlin 2.2.0 + Java 17 + Lombok |
 | `settings.gradle` | 项目设置 |
 | `gradle.properties` | 版本号、模组元数据、Gradle JVM参数 |
 | `gradle/libs.versions.toml` | 版本目录(Registrate + JEI) |
@@ -514,7 +430,7 @@ JSON 示例（`data/shopcore/recipes/selling_bin/apple_to_copper_credit.json`）
 | 核心 | JEI, Farmers Delight, KubeJS, Architectury, Jade |
 | 商店/经济 | SDM Shop, SDM UI Lib, FTB Library, SDM Economy |
 | 季节 | Serene Seasons (+Fix), SeasonHUD, GlitchCore |
-| 拓展 | Some Assembly Required, Avaritia Neo, List Core, Touhou Little Maid, Fruits Delight |
+| 拓展 | Some Assembly Required, Avaritia Neo, List Core, Touhou Little Maid |
 | 开发 | ProbeJS, Kotlin for Forge, Geckolib, Manors Bounty |
 | NPC | Easy NPC |
 
@@ -544,25 +460,12 @@ JSON 示例（`data/shopcore/recipes/selling_bin/apple_to_copper_credit.json`）
          │ block/SellingBin    │     │   recipe/            │
          │  + BlockEntity      │     │   SellingBinRecipe   │
          └──────────┬──────────┘     └──────────────────────┘
-                    │
-         ┌──────────▼──────────────────────────────────────┐
-         │        Kotlin 玩法层                              │
-         │  ┌─────────────────┐  ┌──────────────────────┐  │
-         │  │ gameplay/tree/  │  │ gameplay/quality/    │  │
-         │  │ 树木种植系统     │  │ 作物品质系统          │  │
-         │  └────────┬────────┘  └──────────┬───────────┘  │
-         │           │                      │              │
-         │  ┌────────▼──────────────────────▼───────────┐  │
-         │  │        integration/jade/                  │  │
-         │  │        树桩 Jade 悬浮窗                    │  │
-         │  └───────────────────────────────────────────┘  │
-         └─────────────────────────────────────────────────┘
-
           ┌─────────────────────────────────────────────┐
           │  integration/ (外部模组桥接)                  │
           │  sdm/ → SDM Economy 货币                     │
           │  jei/ → JEI 配方展示 + SDM Shop 数据反射      │
           │  sereneseasons/ → 季节系统兼容                │
+          │  farmerstales/ → 品质 NBT 加价兼容             │
           │  sdm/card/ → 银行卡物品                       │
           └─────────────────────────────────────────────┘
 

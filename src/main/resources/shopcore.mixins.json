@@ -7,10 +7,7 @@
   "mixins": [
     "AbstractShopTabMixin"
   ],
-  "client": [
-    "GuiGraphicsQualityOverlayMixin",
-    "ItemRendererQualityOverlayMixin"
-  ],
+  "client": [],
   "injectors": {
     "defaultRequire": 1
   }
