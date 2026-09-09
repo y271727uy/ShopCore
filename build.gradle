@@ -23,6 +23,9 @@ version = mod_version
 group = mod_group_id
 
 repositories {
+    flatDir {
+        dirs 'lib'
+    }
     mavenLocal()
     maven { // JEI
         name = "Jared's Maven"
@@ -186,7 +189,29 @@ obfuscation {
     createRemappingConfiguration(configurations.localRuntime)
 }
 
+// Local mod JARs must be remapped before a Forge development run. Loading the
+// production JAR directly leaves its SRG member names unresolved.
+def localModFiles = fileTree(dir: 'lib', include: ['*.jar'], exclude: ['*-sources.jar', '*-javadoc.jar'])
+def localModInput = configurations.maybeCreate('localModInput')
+localModInput.canBeConsumed = false
+def localModRuntime = obfuscation.createRemappingConfiguration(localModInput)
+configurations.runtimeClasspath.extendsFrom localModInput
+
+def localModCoordinate = { File localJar ->
+    def stem = localJar.name.replaceFirst(/\.jar$/, '')
+    def separator = stem.lastIndexOf('-')
+    if (separator <= 0) {
+        throw new GradleException("Local mod JAR must contain a name-version separator: ${localJar.name}")
+    }
+    "local:${stem.substring(0, separator)}:${stem.substring(separator + 1)}"
+}
+
 dependencies {
+    // Local Forge mods are resolved from the project's lib directory and remapped for development runs.
+    localModFiles.files.each { localJar ->
+        add(localModRuntime.name, localModCoordinate(localJar))
+    }
+
     // The project originally referenced these via the version catalog (libs).
     // They are commented out to avoid build failure until correct coordinates/versions
     // jarJar(modApi(libs.registrate.get()))

@@ -68,13 +68,17 @@ public record SdmShopJeiEntry(ItemStack itemStack, Price price, int quantity, St
         boolean sell = SdmShopDataBridge.extractBooleanValue(nestedEntry, "isSell", "sell")
                 .or(() -> SdmShopDataBridge.extractBooleanValue(entry, "isSell", "sell"))
                 .orElse(false);
+        String currency = SdmShopDataBridge.extractCurrencyValue(nestedEntry);
+        if (currency.equals(SdmShopDataBridge.DEFAULT_CURRENCY)) {
+            currency = SdmShopDataBridge.extractCurrencyValue(entry);
+        }
         String lockReason = locked
                 ? SdmShopDataBridge.extractStringValue(nestedEntry, "getQuestTitle", "getLockedReason", "getLockReason", "getReason")
                     .or(() -> SdmShopDataBridge.extractStringValue(entry, "getQuestTitle", "getLockedReason", "getLockReason", "getReason"))
                     .orElse("")
                 : "";
 
-        return new SdmShopJeiEntry(stack, price, quantity, shopName, SdmShopDataBridge.DEFAULT_CURRENCY, sell, locked, lockReason);
+        return new SdmShopJeiEntry(stack, price, quantity, shopName, currency, sell, locked, lockReason);
     }
 }
 

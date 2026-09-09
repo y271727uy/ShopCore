@@ -20,6 +20,7 @@ import net.minecraftforge.client.event.ClientPlayerNetworkEvent;
 import net.minecraftforge.client.event.RegisterClientTooltipComponentFactoriesEvent;
 import net.minecraftforge.client.event.RenderGuiOverlayEvent;
 import net.minecraftforge.client.event.RenderTooltipEvent;
+import net.minecraftforge.client.gui.overlay.VanillaGuiOverlay;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.event.lifecycle.FMLClientSetupEvent;
@@ -75,6 +76,9 @@ public final class ShopcoreClientEvents {
         @SubscribeEvent
         public static void onRenderGuiOverlay(RenderGuiOverlayEvent.Post event) {
             OrderPromptHudRenderer.render(event.getGuiGraphics());
+            if (event.getOverlay() == VanillaGuiOverlay.HOTBAR.type()) {
+                BankBalanceHudRenderer.render(event.getGuiGraphics());
+            }
         }
 
         @SubscribeEvent

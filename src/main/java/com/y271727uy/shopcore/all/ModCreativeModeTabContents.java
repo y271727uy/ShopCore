@@ -22,6 +22,12 @@ public final class ModCreativeModeTabContents {
         event.accept(ModItem.BANK_CARD.get());
         event.accept(ModItem.PREMIUM_BANK_CARD.get());
         event.accept(ModItem.SELLING_BIN.get());
+        event.accept(ModItem.IRON_SELLING_BIN.get());
+        event.accept(ModItem.GOLD_SELLING_BIN.get());
+        event.accept(ModItem.DIAMOND_SELLING_BIN.get());
+        event.accept(ModItem.NETHERITE_SELLING_BIN.get());
+        event.accept(ModItem.AGRICULTURE_DAILY.get());
+        event.accept(ModItem.TEST_SHOP_DAILY.get());
     }
 
     private static boolean isListTab(BuildCreativeModeTabContentsEvent event) {

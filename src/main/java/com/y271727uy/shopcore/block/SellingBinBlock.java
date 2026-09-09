@@ -10,6 +10,7 @@ import net.minecraft.core.Direction;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.network.chat.Component;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.player.Player;
@@ -31,10 +32,29 @@ import javax.annotation.ParametersAreNonnullByDefault;
 @ParametersAreNonnullByDefault
 public class SellingBinBlock extends BaseEntityBlock {
     public static final DirectionProperty FACING = HorizontalDirectionalBlock.FACING;
+    private final int intervalTicks;
+    private final String textureName;
 
     public SellingBinBlock(Properties properties) {
+        this(properties, 10 * 60 * 20, "sellingbin");
+    }
+
+    public SellingBinBlock(Properties properties, int intervalTicks, String textureName) {
         super(properties);
+        this.intervalTicks = intervalTicks;
+        this.textureName = textureName;
         this.registerDefaultState(this.stateDefinition.any().setValue(FACING, Direction.NORTH));
+    }
+
+    public int getIntervalTicks() {
+        return intervalTicks;
+    }
+
+    public ResourceLocation getTextureLocation() {
+        return ResourceLocation.fromNamespaceAndPath(
+                "shopcore",
+                "textures/block/sellingbin/" + textureName + ".png"
+        );
     }
 
     @Nullable

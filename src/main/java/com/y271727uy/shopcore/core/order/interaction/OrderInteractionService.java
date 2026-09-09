@@ -18,6 +18,8 @@ import com.y271727uy.shopcore.core.order.settlement.OrderSettlementResult;
 import com.y271727uy.shopcore.core.shop.instance.ShopInstance;
 import com.y271727uy.shopcore.core.shop.runtime.ShopBlockRuntimeHolder;
 import com.y271727uy.shopcore.economic.algorithm.micromachinelearning.helper.OrderDemandLearning;
+import com.y271727uy.shopcore.integration.farmerstales.FarmersTalesFoodExpiryCompat;
+import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.ItemStack;
 
@@ -94,7 +96,10 @@ public final class OrderInteractionService {
             return OrderDeliveryInteractionResult.failed(OrderInteractionStatus.ORDER_NOT_ACTIVE);
         }
 
-        OrderDeliveryResult deliveryResult = OrderDeliveryService.deliver(orderOptional.get(), input);
+        long gameTime = player.level().getGameTime();
+        boolean deliveredRottenFood = FarmersTalesFoodExpiryCompat.getFreshness(input, gameTime)
+                == FarmersTalesFoodExpiryCompat.Freshness.ROTTEN;
+        OrderDeliveryResult deliveryResult = OrderDeliveryService.deliver(orderOptional.get(), input, input.getCount(), gameTime);
         if (!deliveryResult.changed()) {
             return switch (deliveryResult.deliveryStatus()) {
                 case INPUT_EMPTY -> OrderDeliveryInteractionResult.failed(OrderInteractionStatus.INPUT_EMPTY);
@@ -108,6 +113,11 @@ public final class OrderInteractionService {
         holder.shopcore$setOrderBook(orderBook.replace(afterOrder));
         if (!player.getAbilities().instabuild) {
             input.setCount(deliveryResult.remainingInput().getCount());
+        }
+        if (deliveredRottenFood) {
+            player.sendSystemMessage(Component.translatable(player.getRandom().nextBoolean()
+                    ? "message.shopcore.customer_rotten_food_angry"
+                    : "message.shopcore.customer_rotten_food_sick"));
         }
 
         if (deliveryResult.completedOrder()) {

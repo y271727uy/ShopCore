@@ -1,11 +1,12 @@
 package com.y271727uy.shopcore.integration.jei.sdmshop;
 
 /**
- * Temporary no-op placeholder for SDM shop JEI integration.
+ * Kept for source compatibility with earlier integration code. JEI discovers
+ * {@link com.y271727uy.shopcore.integration.jei.ShopcoreJeiPlugin} instead.
  */
-@SuppressWarnings("unused")
+@Deprecated(forRemoval = false)
 public final class SdmShopJeiPlugin {
-    public SdmShopJeiPlugin() {
+    private SdmShopJeiPlugin() {
     }
 }
 

@@ -29,6 +29,16 @@ public final class FarmersTalesQualityCompat {
         return max <= min ? min : min + random.nextInt(max - min + 1);
     }
 
+    /** Customer-delivery rewards for Farmer's Tales quality crops, per delivered item. */
+    public static CustomerDeliveryBonus getCustomerDeliveryBonus(ItemStack stack) {
+        return switch (getQualityId(stack)) {
+            case 1 -> new CustomerDeliveryBonus(1, 6.0D);
+            case 2 -> new CustomerDeliveryBonus(2, 8.0D);
+            case 3 -> new CustomerDeliveryBonus(3, 10.0D);
+            default -> CustomerDeliveryBonus.NONE;
+        };
+    }
+
     private static int getQualityId(ItemStack stack) {
         CompoundTag tag = stack.getTag();
         if (tag == null) {
@@ -47,5 +57,9 @@ public final class FarmersTalesQualityCompat {
         }
         int legacyQualityId = tag.getInt(LEGACY_QUALITY_KEY);
         return legacyQualityId >= 1 && legacyQualityId <= 3 ? legacyQualityId : 0;
+    }
+
+    public record CustomerDeliveryBonus(int extraPrice, double extraReputation) {
+        public static final CustomerDeliveryBonus NONE = new CustomerDeliveryBonus(0, 0.0D);
     }
 }

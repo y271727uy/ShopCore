@@ -26,7 +26,7 @@ public final class SdmShopUIUtils {
             return;
         }
 
-        if (SdmShopRuntimeBridge.tryOpenCurrentScreen(entry.displayStack())) {
+        if (SdmShopRuntimeBridge.openShop(entry)) {
             return;
         }
 

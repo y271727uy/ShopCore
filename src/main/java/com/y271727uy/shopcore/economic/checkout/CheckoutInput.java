@@ -12,16 +12,13 @@ package com.y271727uy.shopcore.economic.checkout;
  */
 public record CheckoutInput(double basicPrice, double addPrice, double reputation, int quantity, double multiplier) {
     public CheckoutInput {
-        if (basicPrice < 0) {
-            throw new IllegalArgumentException("basicPrice cannot be negative");
-        }
-        if (addPrice < 0) {
-            throw new IllegalArgumentException("addPrice cannot be negative");
+        if (!Double.isFinite(basicPrice) || !Double.isFinite(addPrice) || !Double.isFinite(reputation)) {
+            throw new IllegalArgumentException("checkout values must be finite");
         }
         if (quantity < 1) {
             throw new IllegalArgumentException("quantity must be at least 1");
         }
-        if (multiplier < 0) {
+        if (!Double.isFinite(multiplier) || multiplier < 0) {
             throw new IllegalArgumentException("multiplier cannot be negative");
         }
     }

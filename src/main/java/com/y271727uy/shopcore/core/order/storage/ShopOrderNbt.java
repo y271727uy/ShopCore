@@ -29,6 +29,8 @@ public final class ShopOrderNbt {
     private static final String STATUS = "Status";
     private static final String CREATED_GAME_TIME = "CreatedGameTime";
     private static final String EXPIRES_GAME_TIME = "ExpiresGameTime";
+    private static final String QUALITY_BONUS_PRICE = "QualityBonusPrice";
+    private static final String QUALITY_BONUS_REPUTATION = "QualityBonusReputation";
     private static final String REQUESTED_ITEM = "RequestedItem";
     private static final String REQUESTED_COUNT = "RequestedCount";
     private static final String DELIVERED_COUNT = "DeliveredCount";
@@ -47,6 +49,8 @@ public final class ShopOrderNbt {
         tag.putString(STATUS, order.status().name());
         tag.putLong(CREATED_GAME_TIME, order.createdGameTime());
         tag.putLong(EXPIRES_GAME_TIME, order.expiresGameTime());
+        tag.putLong(QUALITY_BONUS_PRICE, order.qualityBonusPrice());
+        tag.putDouble(QUALITY_BONUS_REPUTATION, order.qualityBonusReputation());
 
         ListTag lines = new ListTag();
         for (OrderLine line : order.lines()) {
@@ -82,6 +86,10 @@ public final class ShopOrderNbt {
 
         long created = Math.max(0L, tag.getLong(CREATED_GAME_TIME));
         long expires = Math.max(created, tag.getLong(EXPIRES_GAME_TIME));
+        double qualityBonusReputation = tag.getDouble(QUALITY_BONUS_REPUTATION);
+        if (!Double.isFinite(qualityBonusReputation)) {
+            qualityBonusReputation = 0.0D;
+        }
         return Optional.of(new ShopOrder(
                 tag.getUUID(ORDER_ID),
                 shopId,
@@ -90,7 +98,9 @@ public final class ShopOrderNbt {
                 lines,
                 enumValue(tag.getString(STATUS), OrderStatus.PENDING),
                 created,
-                expires
+                expires,
+                tag.getLong(QUALITY_BONUS_PRICE),
+                qualityBonusReputation
         ));
     }
 

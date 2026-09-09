@@ -39,13 +39,13 @@ public class SellingBinBlockEntityRenderer implements BlockEntityRenderer<Sellin
         poseStack.mulPose(Axis.YP.rotationDegrees(-facing.toYRot() + 180.0F));
 
         model.applyAnimation(openAmount);
-        renderModel(model, poseStack, buffer, packedLight, packedOverlay);
+        renderModel(model, poseStack, buffer, packedLight, packedOverlay, state);
 
         poseStack.popPose();
     }
 
-    private static void renderModel(SellingBinModel model, PoseStack poseStack, MultiBufferSource buffer, int packedLight, int packedOverlay) {
-        VertexConsumer consumer = buffer.getBuffer(RenderType.entityCutoutNoCull(SellingBinModel.TEXTURE_LOCATION));
+    private static void renderModel(SellingBinModel model, PoseStack poseStack, MultiBufferSource buffer, int packedLight, int packedOverlay, BlockState state) {
+        VertexConsumer consumer = buffer.getBuffer(RenderType.entityCutoutNoCull(((SellingBinBlock) state.getBlock()).getTextureLocation()));
         model.renderToBuffer(poseStack, consumer, packedLight, packedOverlay, 1.0F, 1.0F, 1.0F, 1.0F);
     }
 }

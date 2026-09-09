@@ -1,0 +1,7 @@
+{
+  "parent": "shopcore:item/selling_bin",
+  "textures": {
+    "0": "shopcore:block/sellingbin/diamond_sellingbin",
+    "particle": "shopcore:block/sellingbin/diamond_sellingbin"
+  }
+}

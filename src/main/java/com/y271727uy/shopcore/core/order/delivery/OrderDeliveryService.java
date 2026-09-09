@@ -3,6 +3,8 @@ package com.y271727uy.shopcore.core.order.delivery;
 import com.y271727uy.shopcore.core.order.OrderLine;
 import com.y271727uy.shopcore.core.order.OrderStatus;
 import com.y271727uy.shopcore.core.order.ShopOrder;
+import com.y271727uy.shopcore.integration.farmerstales.FarmersTalesQualityCompat;
+import com.y271727uy.shopcore.integration.farmerstales.FarmersTalesFoodExpiryCompat;
 import net.minecraft.world.item.ItemStack;
 
 import java.util.ArrayList;
@@ -19,10 +21,14 @@ public final class OrderDeliveryService {
 
     public static OrderDeliveryResult deliver(ShopOrder order, ItemStack input) {
         Objects.requireNonNull(input, "input");
-        return deliver(order, input, input.getCount());
+        return deliver(order, input, input.getCount(), 0L);
     }
 
     public static OrderDeliveryResult deliver(ShopOrder order, ItemStack input, int maxAmount) {
+        return deliver(order, input, maxAmount, 0L);
+    }
+
+    public static OrderDeliveryResult deliver(ShopOrder order, ItemStack input, int maxAmount, long gameTime) {
         Objects.requireNonNull(order, "order");
         Objects.requireNonNull(input, "input");
         if (maxAmount < 0) {
@@ -59,7 +65,15 @@ public final class OrderDeliveryService {
             return unchanged(OrderDeliveryStatus.NO_MATCH, order, input);
         }
 
-        ShopOrder afterOrder = order.withLines(updatedLines).refreshDeliveryStatus();
+        FarmersTalesQualityCompat.CustomerDeliveryBonus qualityBonus = FarmersTalesQualityCompat.getCustomerDeliveryBonus(input);
+        FarmersTalesFoodExpiryCompat.CustomerDeliveryBonus freshnessBonus =
+                FarmersTalesFoodExpiryCompat.getCustomerDeliveryBonus(input, gameTime);
+        ShopOrder afterOrder = order.withLines(updatedLines)
+                .withAddedQualityBonus(
+                        (long) consumed * (qualityBonus.extraPrice() + freshnessBonus.revenueAdjustment()),
+                        consumed * (qualityBonus.extraReputation() + freshnessBonus.reputationAdjustment())
+                )
+                .refreshDeliveryStatus();
         ItemStack remainingInput = input.copy();
         remainingInput.shrink(consumed);
         OrderDeliveryStatus status = afterOrder.status() == OrderStatus.COMPLETED

@@ -3,6 +3,7 @@ package com.y271727uy.shopcore.block.entity;
 import com.y271727uy.shopcore.all.ModBlockEntities;
 import com.y271727uy.shopcore.all.ModMenus;
 import com.y271727uy.shopcore.all.ModRecipes;
+import com.y271727uy.shopcore.block.SellingBinBlock;
 import com.y271727uy.shopcore.api.economic.ShopcoreCurrency;
 import com.y271727uy.shopcore.client.menu.SellingBinMenu;
 import com.y271727uy.shopcore.economic.currency.CurrencyDenomination;
@@ -71,7 +72,7 @@ public class SellingBinBlockEntity extends BlockEntity implements MenuProvider {
         public int get(int index) {
             return switch (index) {
                 case 0 -> ticksUntilRun;
-                case 1 -> INTERVAL_TICKS;
+                case 1 -> getIntervalTicks(getBlockState());
                 default -> 0;
             };
         }
@@ -134,6 +135,13 @@ public class SellingBinBlockEntity extends BlockEntity implements MenuProvider {
 
     public SellingBinBlockEntity(BlockEntityType<? extends SellingBinBlockEntity> type, BlockPos pos, BlockState state) {
         super(type, pos, state);
+        ticksUntilRun = getIntervalTicks(state);
+    }
+
+    private static int getIntervalTicks(BlockState state) {
+        return state.getBlock() instanceof SellingBinBlock sellingBin
+                ? sellingBin.getIntervalTicks()
+                : INTERVAL_TICKS;
     }
 
     @Override
@@ -289,7 +297,7 @@ public class SellingBinBlockEntity extends BlockEntity implements MenuProvider {
     public void handleUpdateTag(CompoundTag tag) {
         super.handleUpdateTag(tag);
         readInventoryTag(tag);
-        ticksUntilRun = tag.contains("TicksUntilRun") ? tag.getInt("TicksUntilRun") : INTERVAL_TICKS;
+        ticksUntilRun = tag.contains("TicksUntilRun") ? tag.getInt("TicksUntilRun") : getIntervalTicks(getBlockState());
         this.lidTargetOpen = tag.getBoolean("LidTargetOpen");
         this.lidOpenProgress = tag.getFloat("LidOpenProgress");
         this.lastLidOpenProgress = tag.getFloat("LastLidOpenProgress");
@@ -316,7 +324,7 @@ public class SellingBinBlockEntity extends BlockEntity implements MenuProvider {
         } finally {
             suppressInventorySync = false;
         }
-        ticksUntilRun = tag.contains("TicksUntilRun") ? tag.getInt("TicksUntilRun") : INTERVAL_TICKS;
+        ticksUntilRun = tag.contains("TicksUntilRun") ? tag.getInt("TicksUntilRun") : getIntervalTicks(getBlockState());
         this.boundPlayerUuid = tag.hasUUID("BoundPlayerUuid") ? tag.getUUID("BoundPlayerUuid") : null;
         this.boundPlayerName = tag.contains("BoundPlayerName") ? tag.getString("BoundPlayerName") : null;
         this.boundTaxExempt = tag.getBoolean("BoundTaxExempt");
@@ -384,7 +392,7 @@ public class SellingBinBlockEntity extends BlockEntity implements MenuProvider {
             return;
         }
 
-        ticksUntilRun = INTERVAL_TICKS;
+        ticksUntilRun = getIntervalTicks(state);
         runAllRecipes(level);
         setChanged();
     }

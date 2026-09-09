@@ -18,6 +18,18 @@ public final class SdmShopCurrencyItems {
         ItemStack stack = copperCoin();
         return stack.isEmpty() ? "list:copper_coin" : stack.getDescriptionId();
     }
+
+    public static ItemStack resolve(String itemId) {
+        if (itemId == null || itemId.isBlank()) {
+            return copperCoin();
+        }
+
+        ResourceLocation location = ResourceLocation.tryParse(itemId);
+        if (location == null || ForgeRegistries.ITEMS.getValue(location) == null) {
+            return copperCoin();
+        }
+        return new ItemStack(ForgeRegistries.ITEMS.getValue(location));
+    }
 }
 
 

@@ -19,9 +19,18 @@ public final class OrderSettlementService {
         Objects.requireNonNull(context, "context");
         Objects.requireNonNull(sessionStats, "sessionStats");
 
-        long grossBasis = Math.min(context.order().deliveredValue(), context.order().totalValue());
+        long grossBasis = Math.max(0L, Math.addExact(
+                Math.min(context.order().deliveredValue(), context.order().totalValue()),
+                context.order().qualityBonusPrice()
+        ));
         double payoutMultiplier = context.evaluation().accepted() ? context.evaluation().payoutMultiplier() : 0.0D;
-        CheckoutInput checkoutInput = new CheckoutInput(grossBasis, 0.0D, context.reputationBase(), 1, payoutMultiplier);
+        CheckoutInput checkoutInput = new CheckoutInput(
+                grossBasis,
+                0.0D,
+                context.reputationBase() + context.order().qualityBonusReputation(),
+                1,
+                payoutMultiplier
+        );
         CheckoutResult grossCheckout = ShopcoreCheckout.checkout(checkoutInput, null);
 
         Tax.TaxResult taxResult = context.mode() == OrderSettlementMode.ACCOUNT_DEPOSIT

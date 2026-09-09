@@ -17,7 +17,9 @@ public record ShopOrder(
         List<OrderLine> lines,
         OrderStatus status,
         long createdGameTime,
-        long expiresGameTime
+        long expiresGameTime,
+        long qualityBonusPrice,
+        double qualityBonusReputation
 ) {
     public ShopOrder {
         Objects.requireNonNull(orderId, "orderId");
@@ -35,6 +37,14 @@ public record ShopOrder(
         if (expiresGameTime < createdGameTime) {
             throw new IllegalArgumentException("expiresGameTime cannot be before createdGameTime");
         }
+        if (!Double.isFinite(qualityBonusReputation)) {
+            throw new IllegalArgumentException("qualityBonusReputation must be finite");
+        }
+    }
+
+    public ShopOrder(UUID orderId, ShopId shopId, BlockPos shopPos, ResourceLocation customerType, List<OrderLine> lines,
+                     OrderStatus status, long createdGameTime, long expiresGameTime) {
+        this(orderId, shopId, shopPos, customerType, lines, status, createdGameTime, expiresGameTime, 0L, 0.0D);
     }
 
     public static ShopOrder pending(
@@ -53,7 +63,9 @@ public record ShopOrder(
                 lines,
                 OrderStatus.PENDING,
                 createdGameTime,
-                createdGameTime + Math.max(0L, ttlTicks)
+                createdGameTime + Math.max(0L, ttlTicks),
+                0L,
+                0.0D
         );
     }
 
@@ -94,11 +106,19 @@ public record ShopOrder(
     }
 
     public ShopOrder withLines(List<OrderLine> lines) {
-        return new ShopOrder(orderId, shopId, shopPos, customerType, lines, status, createdGameTime, expiresGameTime);
+        return new ShopOrder(orderId, shopId, shopPos, customerType, lines, status, createdGameTime, expiresGameTime, qualityBonusPrice, qualityBonusReputation);
     }
 
     public ShopOrder withStatus(OrderStatus status) {
-        return new ShopOrder(orderId, shopId, shopPos, customerType, lines, status, createdGameTime, expiresGameTime);
+        return new ShopOrder(orderId, shopId, shopPos, customerType, lines, status, createdGameTime, expiresGameTime, qualityBonusPrice, qualityBonusReputation);
+    }
+
+    public ShopOrder withAddedQualityBonus(long price, double reputation) {
+        if (!Double.isFinite(reputation)) {
+            throw new IllegalArgumentException("quality bonus reputation must be finite");
+        }
+        return new ShopOrder(orderId, shopId, shopPos, customerType, lines, status, createdGameTime, expiresGameTime,
+                Math.addExact(qualityBonusPrice, price), qualityBonusReputation + reputation);
     }
 
     public ShopOrder refreshDeliveryStatus() {

@@ -1,4 +1,6 @@
 {
+  "message.shopcore.customer_rotten_food_angry": "顾客吃到腐败的食物，愤怒地离开了。",
+  "message.shopcore.customer_rotten_food_sick": "顾客吃到腐败的食物，当场吐了出来。",
   "tooltip.shopcore.price.header": "经营售价",
   "tooltip.shopcore.price.header.apple": "苹果经营售价",
   "tooltip.shopcore.price.header.logs": "木材经营售价",
@@ -15,6 +17,12 @@
   "gui.shopjei.buy": "购买",
   "gui.shopjei.lock": "锁定",
   "gui.shopjei.lock_info": "已锁定",
+  "jei.shopcore.selling_bin": "出货箱",
+  "jei.shopcore.selling_bin.input_count": "需要：%s",
+  "jei.shopcore.selling_bin.price": "基础收益：%s",
+  "jei.shopcore.sdm_shop": "SDM 商店",
+  "jei.shopcore.sdm_shop.shop": "商店：%s",
+  "jei.shopcore.sdm_shop.price": "价格：%s",
   "tooltip.shopcore.jade.selling_bin.status": "绑定状态：%s",
   "tooltip.shopcore.jade.selling_bin.bound": "已绑定",
   "tooltip.shopcore.jade.selling_bin.unbound": "未绑定",
@@ -91,4 +99,56 @@
   "test.shopcore.delivery.not_allowed": "此订单无法接受交付",
   "test.shopcore.delivery.unchanged": "未交付任何物品",
   "test.shopcore.delivery.no_order": "此顾客没有订单"
+  ,"item.shopcore.agriculture_daily": "农业日报"
+  ,"item.shopcore.test_shop_daily": "测试店铺日报"
+  ,"message.shopcore.test_shop_daily.popular": "食材观察：%s 在测试店铺很受欢迎。"
+  ,"message.shopcore.test_shop_daily.oversupplied": "市场快讯：%s 在测试店铺出货过多，行情走低。"
+  ,"message.shopcore.test_shop_daily.stable": "本日暂无明显行情变化。"
+  ,"message.shopcore.test_shop_daily.spoiled_food": "震惊！测试店铺竟向顾客提供腐烂变质的食物。"
+  ,"message.shopcore.test_shop_daily.filler.1": "店铺街传闻：今天的客人排队时格外安静。"
+  ,"message.shopcore.test_shop_daily.filler.2": "店铺街传闻：有人说闻到了刚出炉面包的香味。"
+  ,"message.shopcore.test_shop_daily.filler.3": "店铺街传闻：收银台旁的盆栽长出了新叶。"
+  ,"message.shopcore.agriculture_daily.down_header": "热销行情：价格下跌"
+  ,"message.shopcore.agriculture_daily.up_header": "滞销行情：价格上涨"
+  ,"message.shopcore.agriculture_daily.entry": "- %s  %s"
+  ,"message.shopcore.agriculture_daily.none": "今日暂无明显行情变化。"
+  ,"message.shopcore.agriculture_daily.filler": "乡间闲讯：%s"
+  ,"message.shopcore.agriculture_daily.filler.1": "邻村的鸡被推选为村长，任期尚未确定。"
+  ,"message.shopcore.agriculture_daily.filler.2": "天气台预报：今天有百分之百的概率出现天气。"
+  ,"message.shopcore.agriculture_daily.filler.3": "农户证实，给作物浇水确实有助于生长。"
+  ,"message.shopcore.agriculture_daily.filler.4": "年度土豆堆叠大赛以平局收场。"
+  ,"message.shopcore.agriculture_daily.filler.5": "流浪商人坚称他的价格已经很优惠。"
+  ,"message.shopcore.agriculture_daily.filler.6": "专家建议，刚洗好的蔬菜应尽量远离泥土。"
+  ,"message.shopcore.agriculture_daily.filler.7": "村公所开了第二个窗口，专门解答第一个窗口为何关闭。"
+  ,"message.shopcore.agriculture_daily.filler.8": "关于减少开会的会议延期举行，以讨论下周的会议。"
+  ,"message.shopcore.agriculture_daily.filler.9": "本期收成报告因没有出现未经批准的信息而获表扬。"
+  ,"message.shopcore.agriculture_daily.filler.10": "新告示提醒居民：阅读告示自愿，但强烈建议。"
+  ,"message.shopcore.agriculture_daily.filler.11": "种子账本现需三人签字，证明种子确实存在。"
+  ,"message.shopcore.agriculture_daily.filler.12": "镇钟经调整至与自身一致后，被宣布走时准确。"
+  ,"message.shopcore.agriculture_daily.filler.13": "委员会将研究委员会是否需要成立一个更小的委员会。"
+  ,"message.shopcore.agriculture_daily.filler.14": "粮仓顺利通过检查，检查员确认检查表已被妥善保存。"
+  ,"message.shopcore.agriculture_daily.filler.15": "居民请勿投喂鸽子，除非鸽子已完成登记。"
+  ,"message.shopcore.agriculture_daily.filler.16": "道路维修通知已修好，现在比道路本身更容易阅读。"
+  ,"message.shopcore.agriculture_daily.filler.17": "一位农户因每亩地长出最多文书而获奖。"
+  ,"message.shopcore.agriculture_daily.filler.18": "集市新增排队服务，供居民排队领取排队资格。"
+  ,"message.shopcore.agriculture_daily.filler.19": "失物招领处正在寻找那张记录丢失表格的表格。"
+  ,"message.shopcore.agriculture_daily.filler.20": "有关部门保证，保证不足的问题正在被持续关注。"
+  ,"message.shopcore.agriculture_daily.filler.21": "公共水井将照常开放，节水停水时段除外。"
+  ,"message.shopcore.agriculture_daily.filler.22": "季节预报称，各季节将按惯常顺序到来。"
+  ,"message.shopcore.agriculture_daily.filler.23": "新印章正式启用，用以证明旧印章依然有效。"
+  ,"message.shopcore.agriculture_daily.filler.24": "村报因报道自己获奖而获得新闻奖。"
+  ,"message.shopcore.agriculture_daily.filler.25": "价目牌被移到室内，以防有人查看价格。"
+  ,"message.shopcore.agriculture_daily.filler.26": "有关部门确认，紧急铃仅可在获批准的紧急情况中使用。"
+  ,"message.shopcore.agriculture_daily.filler.27": "一块解释围栏为何不必要的告示旁，新建了一圈围栏。"
+  ,"message.shopcore.agriculture_daily.filler.28": "村档案馆已将整理档案的计划归档。"
+  ,"message.shopcore.agriculture_daily.filler.29": "年度效率调查现需多花两天才能完成。"
+  ,"message.shopcore.agriculture_daily.filler.30": "议会批准试点计划，用以测试试点是否需要批准。"
+  ,"block.shopcore.iron_selling_bin": "铁出货箱"
+  ,"block.shopcore.gold_selling_bin": "金出货箱"
+  ,"block.shopcore.diamond_selling_bin": "钻石出货箱"
+  ,"block.shopcore.netherite_selling_bin": "下界合金出货箱"
+  ,"item.shopcore.iron_selling_bin": "铁出货箱"
+  ,"item.shopcore.gold_selling_bin": "金出货箱"
+  ,"item.shopcore.diamond_selling_bin": "钻石出货箱"
+  ,"item.shopcore.netherite_selling_bin": "下界合金出货箱"
 }

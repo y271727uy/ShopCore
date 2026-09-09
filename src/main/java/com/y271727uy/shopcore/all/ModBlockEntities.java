@@ -13,7 +13,13 @@ public final class ModBlockEntities {
 
     public static final RegistryObject<BlockEntityType<SellingBinBlockEntity>> SELLING_BIN = BLOCK_ENTITY_TYPES.register(
             "selling_bin",
-            () -> BlockEntityType.Builder.of(SellingBinBlockEntity::new, ModBlock.SELLING_BIN.get()).build(null)
+            () -> BlockEntityType.Builder.of(SellingBinBlockEntity::new,
+                    ModBlock.SELLING_BIN.get(),
+                    ModBlock.IRON_SELLING_BIN.get(),
+                    ModBlock.GOLD_SELLING_BIN.get(),
+                    ModBlock.DIAMOND_SELLING_BIN.get(),
+                    ModBlock.NETHERITE_SELLING_BIN.get()
+            ).build(null)
     );
 
     private ModBlockEntities() {

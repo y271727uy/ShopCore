@@ -1,6 +1,6 @@
 package com.y271727uy.shopcore.client.menu;
 
-import com.y271727uy.shopcore.all.ModBlock;
+import com.y271727uy.shopcore.block.SellingBinBlock;
 import com.y271727uy.shopcore.block.entity.SellingBinBlockEntity;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.world.entity.player.Inventory;
@@ -111,7 +111,8 @@ public class SellingBinMenu extends AbstractContainerMenu {
     @Override
     public boolean stillValid(@Nonnull Player player) {
         var level = blockEntity.getLevel();
-        if (level == null || !stillValid(ContainerLevelAccess.create(level, blockEntity.getBlockPos()), player, ModBlock.SELLING_BIN.get())) {
+        if (level == null || !(blockEntity.getBlockState().getBlock() instanceof SellingBinBlock)
+                || !stillValid(ContainerLevelAccess.create(level, blockEntity.getBlockPos()), player, blockEntity.getBlockState().getBlock())) {
             return false;
         }
 

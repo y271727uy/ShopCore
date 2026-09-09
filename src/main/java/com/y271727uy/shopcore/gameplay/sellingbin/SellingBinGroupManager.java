@@ -68,6 +68,17 @@ public final class SellingBinGroupManager {
         return marketData.snapshotLongTermPriceBonuses(currentDay);
     }
 
+    public static AgricultureDailySavedData.DailyEdition getAgricultureDailyEdition(ServerLevel level) {
+        refreshForElapsedDays(level);
+        long currentDay = Math.floorDiv(level.getDayTime(), DAY_LENGTH_TICKS);
+        return AgricultureDailySavedData.get(level).getOrCreateEdition(
+                currentDay,
+                snapshotVirtualStockPriceBonuses(level),
+                snapshotLongTermPriceBonuses(level),
+                level.random.nextInt(AgricultureDailySavedData.FILLER_NEWS_COUNT) + 1
+        );
+    }
+
     public static boolean recordSale(ServerLevel level, SellingBinRecipe recipe, ItemStack soldStack, int soldCount) {
         if (!recipe.isTradeBalance() || soldStack.isEmpty() || soldCount <= 0) {
             return false;

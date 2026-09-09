@@ -29,8 +29,8 @@ public record OrderSettlementResult(
         if (grossAmount < 0L || netAmount < 0L || taxAmount < 0L) {
             throw new IllegalArgumentException("settlement amounts cannot be negative");
         }
-        if (!Double.isFinite(reputationReward) || reputationReward < 0.0D) {
-            throw new IllegalArgumentException("reputationReward must be a finite non-negative value");
+        if (!Double.isFinite(reputationReward)) {
+            throw new IllegalArgumentException("reputationReward must be finite");
         }
     }
 }

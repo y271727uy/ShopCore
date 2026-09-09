@@ -1,8 +1,10 @@
 package com.y271727uy.shopcore.integration.jei.sdmshop;
 
 import net.minecraft.client.Minecraft;
+import net.minecraft.network.chat.Component;
 import net.minecraft.world.item.ItemStack;
 
+import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.util.Collection;
@@ -46,6 +48,23 @@ public final class SdmShopRuntimeBridge {
         return showInJei(stack);
     }
 
+    public static boolean openShop(SdmShopJeiEntry entry) {
+        Objects.requireNonNull(entry, "entry");
+        Object tab = SdmShopDataBridge.findShopTab(entry).orElseGet(() -> findClientShopTab(entry));
+        if (!openSdmShopScreen()) {
+            return false;
+        }
+
+        Object screen = Minecraft.getInstance().screen;
+        if (screen == null || tab == null) {
+            return true;
+        }
+        if (invokeSingleArgument(screen, "setSelectedTab", tab)) {
+            invokeNoArgMethod(screen, "addEntriesButtons");
+        }
+        return true;
+    }
+
     public static boolean showInJei(ItemStack stack) {
         Object runtime = jeiRuntime;
         if (runtime == null) {
@@ -83,6 +102,79 @@ public final class SdmShopRuntimeBridge {
         return invokeCompatible(target, stack)
                 || invokeCompatible(target, stack.getDescriptionId())
                 || invokeCompatible(target, List.of(stack));
+    }
+
+    private static boolean openSdmShopScreen() {
+        try {
+            Class<?> clientClass = Class.forName("net.sixik.sdmshoprework.SDMShopClient");
+            Method method = clientClass.getMethod("openGui", boolean.class);
+            method.invoke(null, false);
+            return true;
+        } catch (ReflectiveOperationException | IllegalArgumentException ignored) {
+            return false;
+        }
+    }
+
+    private static Object findClientShopTab(SdmShopJeiEntry entry) {
+        try {
+            Class<?> shopBaseClass = Class.forName("net.sixik.sdmshoprework.common.shop.ShopBase");
+            Field client = shopBaseClass.getField("CLIENT");
+            Object shopBase = client.get(null);
+            if (shopBase == null) {
+                return null;
+            }
+
+            Object tabs = shopBaseClass.getMethod("getShopTabs").invoke(shopBase);
+            if (!(tabs instanceof Iterable<?> iterable)) {
+                return null;
+            }
+            for (Object tab : iterable) {
+                String title = getTabTitle(tab);
+                if (entry.shopName().equals(title)) {
+                    return tab;
+                }
+            }
+        } catch (ReflectiveOperationException | IllegalArgumentException ignored) {
+        }
+        return null;
+    }
+
+    private static String getTabTitle(Object tab) {
+        try {
+            Field title = tab.getClass().getField("title");
+            Object value = title.get(tab);
+            if (value instanceof Component component) {
+                return component.getString();
+            }
+            return value == null ? "" : value.toString();
+        } catch (ReflectiveOperationException ignored) {
+            return "";
+        }
+    }
+
+    private static boolean invokeSingleArgument(Object target, String methodName, Object argument) {
+        for (Method method : target.getClass().getMethods()) {
+            if (!method.getName().equals(methodName) || method.getParameterCount() != 1
+                    || !method.getParameterTypes()[0].isInstance(argument)) {
+                continue;
+            }
+            try {
+                method.invoke(target, argument);
+                return true;
+            } catch (ReflectiveOperationException | IllegalArgumentException ignored) {
+                return false;
+            }
+        }
+        return false;
+    }
+
+    private static boolean invokeNoArgMethod(Object target, String methodName) {
+        try {
+            target.getClass().getMethod(methodName).invoke(target);
+            return true;
+        } catch (ReflectiveOperationException | IllegalArgumentException ignored) {
+            return false;
+        }
     }
 
     private static boolean invokeCompatible(Object target, Object argument) {

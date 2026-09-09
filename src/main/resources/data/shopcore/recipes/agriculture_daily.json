@@ -1,0 +1,13 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "category": "misc",
+  "ingredients": [
+    { "item": "minecraft:paper" },
+    { "item": "minecraft:black_dye" },
+    { "item": "minecraft:feather" }
+  ],
+  "result": {
+    "item": "shopcore:agriculture_daily",
+    "count": 1
+  }
+}

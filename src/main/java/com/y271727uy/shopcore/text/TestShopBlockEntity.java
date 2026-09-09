@@ -37,6 +37,7 @@ import com.y271727uy.shopcore.core.shop.opening.ShopOpeningRuleSet;
 import com.y271727uy.shopcore.core.shop.opening.rule.MinListingCountRule;
 import com.y271727uy.shopcore.core.shop.runtime.ShopBlockRuntimeBridge;
 import com.y271727uy.shopcore.core.shop.runtime.ShopRuntimeTickResult;
+import com.y271727uy.shopcore.integration.farmerstales.FarmersTalesFoodExpiryCompat;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.core.BlockPos;
@@ -269,6 +270,9 @@ public class TestShopBlockEntity extends AbstractShopBlockEntity {
         );
         if (result.status() == OrderInteractionStatus.DELIVERED
                 || result.status() == OrderInteractionStatus.COMPLETED) {
+            boolean spoiled = FarmersTalesFoodExpiryCompat.getFreshness(input, player.serverLevel().getGameTime())
+                    == FarmersTalesFoodExpiryCompat.Freshness.ROTTEN;
+            TestShopDailySavedData.recordDelivery(player.serverLevel(), input, result.deliveryResult().consumedCount(), spoiled);
             playDeliverySound(player);
         }
         if (result.status() == OrderInteractionStatus.COMPLETED

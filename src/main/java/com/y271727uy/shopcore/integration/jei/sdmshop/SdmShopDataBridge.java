@@ -43,6 +43,7 @@ public final class SdmShopDataBridge {
     public static final String DEFAULT_CURRENCY = ResourceLocation.fromNamespaceAndPath("list", CurrencyDenomination.COPPER_GT_CREDIT.itemPath()).toString();
 
     private static final Set<SdmShopJeiEntry> ENTRY_CACHE = ConcurrentHashMap.newKeySet();
+    private static final Map<SdmShopJeiEntry, Object> SHOP_TABS = new ConcurrentHashMap<>();
     private static volatile List<SdmShopJeiEntry> cachedEntries = List.of();
     private static final Object CACHE_LOCK = new Object();
 
@@ -211,12 +212,23 @@ public final class SdmShopDataBridge {
     }
 
     public static void recordEntry(SdmShopJeiEntry entry) {
+        recordEntry(entry, null);
+    }
+
+    public static void recordEntry(SdmShopJeiEntry entry, Object shopTab) {
         if (entry == null) {
             return;
+        }
+        if (shopTab != null) {
+            SHOP_TABS.put(entry, shopTab);
         }
         if (ENTRY_CACHE.add(entry)) {
             rebuildCache();
         }
+    }
+
+    public static Optional<Object> findShopTab(SdmShopJeiEntry entry) {
+        return Optional.ofNullable(SHOP_TABS.get(entry));
     }
 
     public static List<SdmShopJeiEntry> snapshot() {
@@ -258,7 +270,9 @@ public final class SdmShopDataBridge {
 
             try {
                 String snbt = Files.readString(path);
-                List<SdmShopJeiEntry> parsed = parseSdmShopConfig(TagParser.parseTag(snbt));
+                // SDM writes a relaxed SNBT dialect where line breaks separate fields.
+                // Vanilla's TagParser requires commas, so normalize only the in-memory text.
+                List<SdmShopJeiEntry> parsed = parseSdmShopConfig(TagParser.parseTag(normalizeSdmSnbt(snbt)));
                 if (!parsed.isEmpty()) {
                     LOGGER.info("Loaded {} SDM shop entries from {}", parsed.size(), path);
                     return parsed;
@@ -269,6 +283,54 @@ public final class SdmShopDataBridge {
         }
 
         return List.of();
+    }
+
+    private static String normalizeSdmSnbt(String source) {
+        StringBuilder normalized = new StringBuilder(source.length() + 64);
+        boolean quoted = false;
+        boolean escaped = false;
+
+        for (int index = 0; index < source.length(); index++) {
+            char current = source.charAt(index);
+            if (current == '"' && !escaped) {
+                quoted = !quoted;
+            }
+            escaped = current == '\\' && !escaped;
+
+            if (!quoted && (current == '\n' || current == '\r')) {
+                int previous = previousNonWhitespace(normalized);
+                int next = nextNonWhitespace(source, index + 1);
+                if (requiresSeparator(previous, next)) {
+                    normalized.append(',');
+                }
+            }
+            normalized.append(current);
+        }
+        return normalized.toString();
+    }
+
+    private static int previousNonWhitespace(StringBuilder text) {
+        for (int index = text.length() - 1; index >= 0; index--) {
+            if (!Character.isWhitespace(text.charAt(index))) {
+                return text.charAt(index);
+            }
+        }
+        return -1;
+    }
+
+    private static int nextNonWhitespace(String text, int start) {
+        for (int index = start; index < text.length(); index++) {
+            if (!Character.isWhitespace(text.charAt(index))) {
+                return text.charAt(index);
+            }
+        }
+        return -1;
+    }
+
+    private static boolean requiresSeparator(int previous, int next) {
+        return previous != -1 && next != -1
+                && previous != '{' && previous != '[' && previous != ',' && previous != ';'
+                && next != '}' && next != ']' && next != ',';
     }
 
     private static List<SdmShopJeiEntry> parseSdmShopConfig(CompoundTag root) {
@@ -312,12 +374,27 @@ public final class SdmShopDataBridge {
                 boolean sell = entryTag.contains("isSell", Tag.TAG_BYTE) && entryTag.getBoolean("isSell");
                 boolean locked = entryTag.contains("isLocked", Tag.TAG_BYTE) && entryTag.getBoolean("isLocked");
                 String lockReason = "";
+                String currency = extractCurrency(entryTag);
 
-                entries.add(new SdmShopJeiEntry(stack, price, quantity, shopName, DEFAULT_CURRENCY, sell, locked, lockReason));
+                entries.add(new SdmShopJeiEntry(stack, price, quantity, shopName, currency, sell, locked, lockReason));
             }
         }
 
         return entries;
+    }
+
+    private static String extractCurrency(CompoundTag entryTag) {
+        CompoundTag seller = entryTag.getCompound("shopSeller");
+        if (!"item".equals(seller.getString("shopSellerTypeID"))) {
+            return DEFAULT_CURRENCY;
+        }
+
+        ItemStack payment = ItemStack.of(seller.getCompound("item"));
+        if (payment.isEmpty()) {
+            return DEFAULT_CURRENCY;
+        }
+        ResourceLocation paymentId = net.minecraftforge.registries.ForgeRegistries.ITEMS.getKey(payment.getItem());
+        return paymentId == null ? DEFAULT_CURRENCY : paymentId.toString();
     }
 
     public static Optional<Object> invokeFirst(Object target, String... names) {
@@ -658,7 +735,28 @@ public final class SdmShopDataBridge {
                 ? extractString(raw, LOCK_REASON_METHODS).orElseGet(() -> questId.isBlank() ? "gui.shopjei.lock_info" : questId)
                 : "";
 
-        return new SdmShopJeiEntry(stack, price, quantity, shopName, DEFAULT_CURRENCY, sell, locked, lockReason);
+        return new SdmShopJeiEntry(stack, price, quantity, shopName, extractCurrency(raw), sell, locked, lockReason);
+    }
+
+    public static String extractCurrencyValue(Object raw) {
+        return extractCurrency(raw);
+    }
+
+    private static String extractCurrency(Object raw) {
+        Object seller = invokeFirst(raw, "getShopSellerType", "getShopSeller", "shopSellerType", "shopSeller")
+                .or(() -> readField(raw, "shopSellerType"))
+                .or(() -> readField(raw, "shopSeller"))
+                .orElse(null);
+        if (seller == null) {
+            return DEFAULT_CURRENCY;
+        }
+
+        ItemStack payment = extractItemStack(seller).orElse(ItemStack.EMPTY);
+        if (payment.isEmpty()) {
+            return DEFAULT_CURRENCY;
+        }
+        ResourceLocation paymentId = net.minecraftforge.registries.ForgeRegistries.ITEMS.getKey(payment.getItem());
+        return paymentId == null ? DEFAULT_CURRENCY : paymentId.toString();
     }
 
     private static Optional<ItemStack> extractItemStack(Object raw) {
