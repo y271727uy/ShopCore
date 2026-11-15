@@ -16,7 +16,7 @@
   - [consumer/ —— NPC 集成消费方（空壳）](#consumer--npc-集成消费方空壳)
   - [economic/ —— 经济基础设施层](#economic--经济基础设施层)
   - [economic/micromachinelearning/ —— 机器学习调控](#economicmicromachinelearning--机器学习调控)
-  - [economic/shopmenu/ —— 商店菜单框架](#economicshopmenu--商店菜单框架)
+  - [core/menu/ —— 商店菜单框架](#coremenu--商店菜单框架)
   - [event/ —— Forge 事件](#event--forge-事件)
   - [gameplay/ —— 游戏玩法（仅 sellingbin）](#gameplay--游戏玩法仅-srcmainjavacom-y271727uy-shopcore-gameplay)
   - [integration/ —— 外部模组集成](#integration--外部模组集成)
@@ -61,8 +61,7 @@ ModMessages.register();
 
 // commonSetup:
 ShopcoreEconomicBootstrap.bootstrap();  // 注册价格、tooltip
-MenuCreate.clear();
-MenuCreate.registerAll();               // 注册商店菜单
+MenuCatalog.clear();                   // 初始化菜单标签别名表
 ```
 
 ---
@@ -86,15 +85,25 @@ MenuCreate.registerAll();               // 注册商店菜单
 
 ### api/ —— 公开 API 门面
 
-其他模组或 KubeJS 通过这层调用经济功能。
+其他模组和本模组玩法通过这层调用经济和店铺能力。店铺入口分为 `api.preset` 预制店铺与 `api.component` 可组合零件；公开宿主与运行合同位于 `api.shop`。旧经济与菜单包已移除，迁移说明见 [店铺 API](docs/shop-api.md)。
 
 | 文件 | 作用 |
 |------|------|
-| **PriceProvider.java** | 价格查询接口 |
-| **ShopcorePrices.java** | 通过 `PriceRegistry` 查询物品价格 |
-| **ShopcoreCheckout.java** | 结账入口，使用 `DefaultCurrencyStackFactory.INSTANCE` |
-| **ShopcoreCurrency.java** | 货币操作，桥接到 `SdmCurrencyHelperBridge` → SDM Economy |
-| **ShopcoreReputation.java** | 声望查询和计算 |
+| **ShopcoreApi.java** | API 版本 `3.0.0` 与能力发现入口 |
+| **preset/ShopPresets.java** | 通过公开零件组装预制排队店铺 |
+| **component/** | 菜单来源、商品配置、顾客组、交互/归属合同、订单周期及交付通知 |
+| **shop/ShopBlockEntity.java** | 公开方块实体宿主，承接存档、同步及顾客能力 |
+| **shop/ShopDefinition.java、ShopRuntime.java** | 每家店独立创建运行状态，统一 tick、开关店、拆店、交付与状态查询 |
+| **shop/ShopcoreShops.java** | 类型化查询店铺快照、绑定/解绑结算账户 |
+| **shop/ShopSnapshot.java** | 不暴露 core 领域对象的店铺基础设施快照 |
+| **shop/ShopAccountBindingResult.java** | 店铺账户操作结果 |
+| **component/menu/ShopcoreMenus.java** | 标签菜单注册、候选查询，与订单生成共用解析器 |
+| **component/economic/PriceQuote.java、ShopcorePrices.java** | 只返回公开报价类型的价格查询 |
+| **component/economic/ShopcoreCheckout.java** | 显式区分纯计算与货币物品生成 |
+| **component/economic/ShopcoreCurrency.java** | 货币操作，桥接到 `SdmCurrencyHelperBridge` → SDM Economy |
+| **component/economic/** | 结账输入/结果、货币面额/明细/工厂、货币操作结果；核心引擎也使用这些公开类型 |
+
+测试店铺已使用公开预制入口，不再直接引用 `core`。银行卡的店铺账户绑定和 Jade 店铺展示也通过公开 API。当前首批零件支持现有横向队列店铺；其他顾客后端、自定义移动/订单策略及复杂菜单仍需后续补充公开合同。
 
 ---
 
@@ -138,6 +147,8 @@ MenuCreate.registerAll();               // 注册商店菜单
 ### economic/ —— 经济基础设施层
 
 这是全模组最核心的模块，不依赖任何业务逻辑，提供纯经济计算能力。
+
+实现现位于 `core/economic`；下表的结账输入/结果和货币合同类型已迁至 `api/component/economic`，由核心引擎与外部调用方共用。
 
 | 文件 | 作用 |
 |------|------|
@@ -219,16 +230,16 @@ MenuCreate.registerAll();               // 注册商店菜单
 
 ---
 
-### economic/shopmenu/ —— 商店菜单框架
+### core/menu/ —— 商店菜单框架
 
 | 文件 | 作用 |
 |------|------|
-| **MenuCreate.java** | 核心: 按标签定义菜单、将目标绑定到菜单ID、检查是否能接收物品 |
-| **MenuDefinition.java** | 菜单定义: `(menuId, itemTag)` |
-| **MenuBinding.java** | 菜单绑定对象 |
-| **MenuBootstrap.java** | 遗留占位(已弃用) |
+| **MenuCatalog.java** | 保存命名菜单到物品标签的映射；不保存宿主或世界对象 |
+| **MenuItemCandidates.java** | 按 PriceSetting 菜单、标签别名、物品/标签引用解析候选 |
+| **ShopMenuSnapshot.java** | 每家店持有的实际菜单及其版本 |
+| **ShopMenuListingResolver.java** | 将商品栏位与需求池条目解析为可下单商品 |
 
-当前只注册了 `registerMenu("menu_one", "#minecraft:logs")`，没有实体调用过 `bindMenu()`。
+公开入口位于 `api.component.menu`。通过 `MenuSource` / `MenuListing` 配置店铺商品，通过 `ShopcoreMenus` 注册标签别名及查询候选；旧任意对象绑定 API 已删除。
 
 ---
 

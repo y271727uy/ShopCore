@@ -1,9 +1,9 @@
 package com.y271727uy.shopcore.core.order.settlement;
 
 import com.y271727uy.shopcore.core.shop.session.BusinessSessionStats;
-import com.y271727uy.shopcore.economic.checkout.CheckoutResult;
-import com.y271727uy.shopcore.economic.currency.CurrencyOperationResult;
-import com.y271727uy.shopcore.economic.tax.Tax;
+import com.y271727uy.shopcore.api.component.economic.CheckoutResult;
+import com.y271727uy.shopcore.api.component.economic.CurrencyOperationResult;
+import com.y271727uy.shopcore.core.economic.tax.Tax;
 
 import java.util.Objects;
 import java.util.Optional;

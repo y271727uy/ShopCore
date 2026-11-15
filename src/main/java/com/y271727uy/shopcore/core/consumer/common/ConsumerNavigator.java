@@ -14,6 +14,11 @@ public interface ConsumerNavigator {
 
     void discard(ConsumerActor actor);
 
+    default Vec3 prepareDeparture(ConsumerActor actor, double distance) {
+        Objects.requireNonNull(actor, "actor");
+        return actor.position();
+    }
+
     default boolean isCloseTo(ConsumerActor actor, Vec3 target, double distance) {
         Objects.requireNonNull(actor, "actor");
         Objects.requireNonNull(target, "target");

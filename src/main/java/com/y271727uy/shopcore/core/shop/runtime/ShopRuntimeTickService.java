@@ -2,15 +2,13 @@ package com.y271727uy.shopcore.core.shop.runtime;
 
 import com.y271727uy.shopcore.core.order.CustomerProfile;
 import com.y271727uy.shopcore.core.order.ShopOrder;
-import com.y271727uy.shopcore.core.order.book.ShopOrderBook;
+import com.y271727uy.shopcore.core.order.lifecycle.OrderBookLifecycleService;
+import com.y271727uy.shopcore.core.order.lifecycle.OrderLifecycleCommit;
 import com.y271727uy.shopcore.core.order.customer.CustomerSelectionContext;
 import com.y271727uy.shopcore.core.order.generation.OrderGenerationScheduleContext;
 import com.y271727uy.shopcore.core.order.generation.ShopOrderGenerationContext;
 import com.y271727uy.shopcore.core.order.generation.ShopOrderGenerationResult;
 import com.y271727uy.shopcore.core.order.generation.ShopOrderGenerationService;
-import com.y271727uy.shopcore.core.order.lifecycle.OrderLifecycleResult;
-import com.y271727uy.shopcore.core.order.lifecycle.OrderLifecycleService;
-import com.y271727uy.shopcore.core.order.lifecycle.OrderLifecycleStatus;
 import com.y271727uy.shopcore.core.shop.instance.ShopInstance;
 import com.y271727uy.shopcore.core.shop.operation.ShopOperationContext;
 import com.y271727uy.shopcore.core.shop.operation.ShopOperationResult;
@@ -18,8 +16,6 @@ import com.y271727uy.shopcore.core.shop.operation.ShopOperationService;
 import com.y271727uy.shopcore.core.shop.policy.OperatingPolicyDecision;
 import com.y271727uy.shopcore.core.shop.session.ShopSessionTickResult;
 
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 
@@ -94,8 +90,7 @@ public class ShopRuntimeTickService {
     public void apply(ShopBlockRuntimeHolder holder, ShopRuntimeTickResult result) {
         Objects.requireNonNull(holder, "holder");
         Objects.requireNonNull(result, "result");
-        holder.shopcore$setShopInstance(result.shop());
-        holder.shopcore$setOrderBook(result.orderBook());
+        OrderLifecycleCommit.apply(holder, result.shop(), result.orderBook());
     }
 
     private ShopSessionTickResult refreshSession(
@@ -103,39 +98,16 @@ public class ShopRuntimeTickService {
             ShopOperationResult operationResult,
             Optional<ShopOrder> incomingOrder
     ) {
-        ShopInstance shop = operationResult.shop();
-        ShopOrderBook orderBook = context.orderBook();
-        List<OrderLifecycleResult> events = new ArrayList<>();
-
-        for (ShopOrder order : orderBook.orders()) {
-            OrderLifecycleResult result = OrderLifecycleService.refresh(order, context.gameTime());
-            if (result.countsAsExpired()) {
-                shop = shop.withCurrentSession(shop.currentSession().recordOrderExpired());
-            }
-            if (result.afterOrder() != null) {
-                orderBook = orderBook.replace(result.afterOrder());
-            }
-            if (result.status() != OrderLifecycleStatus.UNCHANGED) {
-                events.add(result);
-            }
-        }
-
-        if (incomingOrder.isPresent()) {
-            OrderLifecycleResult createResult = OrderLifecycleService.tryCreate(shop, orderBook.activeOrders(), incomingOrder.get());
-            events.add(createResult);
-            if (createResult.countsAsCreated() && createResult.afterOrder() != null) {
-                orderBook = orderBook.add(createResult.afterOrder());
-                shop = shop.withCurrentSession(shop.currentSession().recordOrderCreated());
-            }
-        }
-
+        var lifecycle = OrderBookLifecycleService.refresh(operationResult.shop(), context.orderBook(),
+                context.gameTime(), incomingOrder);
+        ShopInstance shop = lifecycle.shop();
         OperatingPolicyDecision operatingDecision = operationResult.policyDecisionOptional().orElse(fallbackDecision(shop));
         return new ShopSessionTickResult(
                 shop,
-                orderBook,
+                lifecycle.orderBook(),
                 operatingDecision,
                 operationResult.openingResultOptional(),
-                events
+                lifecycle.events()
         );
     }
 

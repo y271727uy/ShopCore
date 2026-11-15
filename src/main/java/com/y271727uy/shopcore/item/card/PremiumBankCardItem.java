@@ -3,11 +3,9 @@ package com.y271727uy.shopcore.item.card;
 import net.minecraft.ChatFormatting;
 import net.minecraft.MethodsReturnNonnullByDefault;
 import net.minecraft.network.chat.Component;
-import net.minecraft.world.InteractionResult;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.TooltipFlag;
-import net.minecraft.world.item.context.UseOnContext;
 import net.minecraft.world.level.Level;
 
 import javax.annotation.Nullable;
@@ -24,11 +22,6 @@ public class PremiumBankCardItem extends BankCardItem {
     @Override
     protected boolean isTaxExempt() {
         return true;
-    }
-
-    @Override
-    public InteractionResult useOn(UseOnContext context) {
-        return useOnSellingBin(context, isTaxExempt());
     }
 
     @Override

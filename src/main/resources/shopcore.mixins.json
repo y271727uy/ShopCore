@@ -6,6 +6,10 @@
   "compatibilityLevel": "JAVA_17",
   "mixins": [
     "AbstractShopTabMixin",
+    "BoundBlockStateMixin",
+    "BoundBlockEntityTypeMixin",
+    "BoundLevelChunkMixin",
+    "BoundWorldGenRegionMixin",
     "VillagerMarketPriceMixin"
   ],
   "client": [],

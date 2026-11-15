@@ -1,0 +1,49 @@
+// Optional headless regression harness. Reuses the mapped Minecraft compile classpath.
+// No additional test framework, Gradle distribution, or dependency is required.
+gradle.beforeProject { root ->
+    if (root != root.rootProject) return
+    root.pluginManager.withPlugin('java') {
+        def regression = root.sourceSets.create('consumerRegression') {
+            java.srcDir 'src/verification/java'
+            compileClasspath = root.sourceSets.main.output + root.sourceSets.main.compileClasspath
+            runtimeClasspath = output + root.sourceSets.main.output + root.sourceSets.main.runtimeClasspath + root.sourceSets.main.compileClasspath
+        }
+        root.tasks.register('verifyConsumerRuntime', JavaExec) {
+            group = 'verification'
+            description = 'Verifies consumer movement and lifecycle compatibility without launching Minecraft.'
+            dependsOn root.tasks.named(regression.classesTaskName)
+            classpath = regression.runtimeClasspath
+            workingDir = root.layout.buildDirectory.dir('consumer-regression').get().asFile
+            doFirst { workingDir.mkdirs() }
+            mainClass = 'com.y271727uy.shopcore.core.consumer.ConsumerRuntimeRegression'
+            javaLauncher = root.javaToolchains.launcherFor {
+                languageVersion = JavaLanguageVersion.of(17)
+            }
+        }
+        root.tasks.register('verifyDeliveryInteraction', JavaExec) {
+            group = 'verification'
+            description = 'Verifies customer delivery eligibility and feedback without launching Minecraft.'
+            dependsOn root.tasks.named(regression.classesTaskName)
+            classpath = regression.runtimeClasspath
+            workingDir = root.layout.buildDirectory.dir('delivery-regression').get().asFile
+            doFirst { workingDir.mkdirs() }
+            mainClass = 'com.y271727uy.shopcore.core.consumer.DeliveryInteractionRegression'
+            javaLauncher = root.javaToolchains.launcherFor {
+                languageVersion = JavaLanguageVersion.of(17)
+            }
+        }
+        root.tasks.register('verifyShopApi', JavaExec) {
+            group = 'verification'
+            description = 'Verifies public shop assembly, instance isolation and persistence without launching Minecraft.'
+            dependsOn root.tasks.named(regression.classesTaskName)
+            classpath = regression.runtimeClasspath
+            workingDir = root.layout.buildDirectory.dir('shop-api-regression').get().asFile
+            doFirst { workingDir.mkdirs() }
+            mainClass = 'com.y271727uy.shopcore.api.ShopApiRegression'
+            javaLauncher = root.javaToolchains.launcherFor {
+                languageVersion = JavaLanguageVersion.of(17)
+            }
+        }
+    }
+}
+

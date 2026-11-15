@@ -1,5 +1,6 @@
 package com.y271727uy.shopcore.text;
 
+import com.y271727uy.shopcore.item.card.BankCardItem;
 import net.minecraft.ChatFormatting;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
@@ -72,11 +73,18 @@ public class TestShopBlock extends BaseEntityBlock {
         if (!(blockEntity instanceof TestShopBlockEntity testShop)) {
             return InteractionResult.PASS;
         }
+        if (player.getItemInHand(hand).getItem() instanceof BankCardItem bankCard
+                && player instanceof ServerPlayer serverPlayer) {
+            return bankCard.bindShopAccount(testShop, serverPlayer);
+        }
         if (player.getItemInHand(hand).is(Items.FEATHER)) {
             if (player instanceof ServerPlayer serverPlayer) {
                 serverPlayer.displayClientMessage(testShop.recordNextOrderText(serverPlayer).copy().withStyle(ChatFormatting.AQUA), false);
             }
             return InteractionResult.CONSUME;
+        }
+        if (hand != InteractionHand.MAIN_HAND) {
+            return InteractionResult.PASS;
         }
         if (!player.isShiftKeyDown()) {
             if (player instanceof ServerPlayer serverPlayer) {
@@ -85,11 +93,24 @@ public class TestShopBlock extends BaseEntityBlock {
             }
             return InteractionResult.CONSUME;
         }
-        testShop.toggleOpenRequested();
+        boolean opening = testShop.toggleOpenRequested();
         if (player instanceof ServerPlayer serverPlayer) {
-            serverPlayer.displayClientMessage(testShop.statusText().copy().withStyle(ChatFormatting.GREEN), false);
+            serverPlayer.displayClientMessage(Component.translatable(
+                    opening ? "test.shopcore.open_requested" : "test.shopcore.close_requested"
+            ).copy().withStyle(ChatFormatting.GREEN), false);
         }
         return InteractionResult.CONSUME;
+    }
+
+    @SuppressWarnings("deprecation")
+    @Override
+    public void onRemove(BlockState state, Level level, BlockPos pos, BlockState newState, boolean isMoving) {
+        if (!level.isClientSide && state.getBlock() != newState.getBlock()
+                && level instanceof net.minecraft.server.level.ServerLevel serverLevel
+                && level.getBlockEntity(pos) instanceof TestShopBlockEntity shop) {
+            shop.forceConsumersToLeaveAfterRemoval(serverLevel);
+        }
+        super.onRemove(state, level, pos, newState, isMoving);
     }
 
     @Nullable

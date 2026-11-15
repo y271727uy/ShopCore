@@ -1,8 +1,7 @@
 package com.y271727uy.shopcore.core.menu;
 
-import com.y271727uy.shopcore.core.shop.shopmenu.TooltipMenuCreate;
 import com.y271727uy.shopcore.core.util.ItemReferenceResolver;
-import com.y271727uy.shopcore.economic.pricesetting.PriceSettingMenus;
+import com.y271727uy.shopcore.core.economic.pricesetting.PriceSettingMenus;
 import net.minecraft.tags.TagKey;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
@@ -21,9 +20,9 @@ public final class MenuItemCandidates {
         if (configuredMenuItems.isPresent()) {
             return configuredMenuItems.get();
         }
-        try {
-            return TooltipMenuCreate.getCandidateItems(menuIdOrTagId);
-        } catch (IllegalArgumentException ignored) {
+        var registeredTag = MenuCatalog.findTag(menuIdOrTagId);
+        if (registeredTag.isPresent()) {
+            return resolveTag(registeredTag.get().toString());
         }
         List<ItemStack> itemCandidate = resolveItem(menuIdOrTagId);
         if (!itemCandidate.isEmpty()) {

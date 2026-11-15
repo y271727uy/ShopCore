@@ -1,0 +1,21 @@
+// Opt-in integration fixtures; never compiled into a normal ShopCore build.
+// Uses the existing Forge GameTest runtime and an isolated world under build/.
+gradle.beforeProject { root ->
+    if (root != root.rootProject) return
+    root.pluginManager.withPlugin('java') {
+        root.sourceSets.create('blockBindingGameTest') {
+            java.srcDir 'src/verification/gametest'
+            resources.srcDir 'src/verification/gametest-resources'
+            compileClasspath = root.sourceSets.main.output + root.sourceSets.main.compileClasspath
+            runtimeClasspath = output + root.sourceSets.main.runtimeClasspath
+        }
+    }
+    root.afterEvaluate {
+        root.legacyForge.mods.named('shopcore') {
+            sourceSet(root.sourceSets.blockBindingGameTest)
+        }
+        root.legacyForge.runs.named('gameTestServer') {
+            gameDirectory = root.file('build/block-bindings-gametest')
+        }
+    }
+}

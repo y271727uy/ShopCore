@@ -36,10 +36,32 @@ public class HorizontalQueue {
                 .toList();
 
         if (!context.shopOpen()) {
-            for (ConsumerActor actor : alive) {
-                QueueConsumerPhase phase = normalizePhase(memory, actor, context.gameTime());
-                if (phase != QueueConsumerPhase.DONE) {
-                    memory.setPhase(actor, QueueConsumerPhase.LEAVING);
+            List<ConsumerActor> leaving = alive.stream()
+                    .filter(actor -> normalizePhase(memory, actor, context.gameTime()) == QueueConsumerPhase.LEAVING)
+                    .toList();
+            if (leaving.isEmpty()) {
+                alive.stream()
+                        .filter(actor -> normalizePhase(memory, actor, context.gameTime()) != QueueConsumerPhase.DONE)
+                        .min(Comparator.comparingLong(memory::joinedGameTime).thenComparing(ConsumerActor::consumerId))
+                        .ifPresent(actor -> {
+                            memory.setPhase(actor, QueueConsumerPhase.LEAVING);
+                            for (ConsumerActor other : alive) {
+                                if (!other.consumerId().equals(actor.consumerId())
+                                        && normalizePhase(memory, other, context.gameTime()) != QueueConsumerPhase.DONE) {
+                                    memory.clearDepartureTarget(other);
+                                    memory.setPhase(other, QueueConsumerPhase.QUEUING);
+                                }
+                            }
+                        });
+            } else if (leaving.size() > 1) {
+                ConsumerActor firstLeaving = leaving.stream()
+                        .min(Comparator.comparingLong(memory::joinedGameTime).thenComparing(ConsumerActor::consumerId))
+                        .orElseThrow();
+                for (ConsumerActor actor : leaving) {
+                    if (!actor.consumerId().equals(firstLeaving.consumerId())) {
+                        memory.clearDepartureTarget(actor);
+                        memory.setPhase(actor, QueueConsumerPhase.QUEUING);
+                    }
                 }
             }
         }
@@ -53,12 +75,14 @@ public class HorizontalQueue {
                 .toList();
 
         int serviceSlots = context.layout().serviceSlots().size();
-        for (int i = 0; i < active.size(); i++) {
-            ConsumerActor actor = active.get(i);
-            if (i < serviceSlots) {
-                tickServiceConsumer(context, actor, context.layout().serviceLocalPosition(i));
-            } else {
-                tickQueuedConsumer(context, actor, context.layout().queueLocalPosition(i - serviceSlots));
+        if (context.shopOpen()) {
+            for (int i = 0; i < active.size(); i++) {
+                ConsumerActor actor = active.get(i);
+                if (i < serviceSlots) {
+                    tickServiceConsumer(context, actor, context.layout().serviceLocalPosition(i));
+                } else {
+                    tickQueuedConsumer(context, actor, context.layout().queueLocalPosition(i - serviceSlots));
+                }
             }
         }
 
@@ -110,14 +134,22 @@ public class HorizontalQueue {
     }
 
     private void tickLeavingConsumer(HorizontalQueueContext context, ConsumerActor actor) {
-        Vec3 local = context.layout().toLocal(actor);
-        if (local.x <= EXIT_X + SLOT_EPSILON && isClose(local.z, SERVICE_Z)) {
-            context.memory().setPhase(actor, QueueConsumerPhase.DONE);
-            context.navigator().discard(actor);
+        ConsumerMemory memory = context.memory();
+        Vec3 target = memory.departureTarget(actor)
+                .orElseGet(() -> {
+                    Vec3 local = context.layout().toLocal(actor);
+                    Vec3 created = context.layout().transform().toWorldPosition(
+                            new Vec3(EXIT_X, local.y, local.z)
+                    );
+                    memory.setDepartureTarget(actor, created);
+                    return created;
+                });
+        if (context.navigator().isCloseTo(actor, target, SLOT_EPSILON)) {
+            memory.setPhase(actor, QueueConsumerPhase.DONE);
+            context.navigator().stop(actor);
             return;
         }
-
-        moveAlongServiceLine(context, actor, EXIT_X);
+        context.navigator().moveTowards(actor, target, context.layout().moveSpeed());
     }
 
     private void waitAtService(HorizontalQueueContext context, ConsumerActor actor) {

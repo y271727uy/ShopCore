@@ -7,6 +7,7 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.NbtUtils;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.phys.Vec3;
 
 import java.util.Objects;
 import java.util.Optional;
@@ -18,6 +19,8 @@ public class EntityPersistentConsumerMemory implements ConsumerMemory {
     private static final String JOINED_GAME_TIME_TAG = "JoinedGameTime";
     private static final String ORDER_ID_TAG = "OrderId";
     private static final String SHOP_POS_TAG = "ShopPos";
+    private static final String DEPARTURE_TARGET_TAG = "DepartureTarget";
+    private static final String ORPHAN_DEPARTURE_TAG = "OrphanDeparture";
 
     @Override
     public QueueConsumerPhase phase(ConsumerActor actor) {
@@ -69,6 +72,43 @@ public class EntityPersistentConsumerMemory implements ConsumerMemory {
     @Override
     public void clearOrderId(ConsumerActor actor) {
         writeTag(actor).remove(ORDER_ID_TAG);
+    }
+
+    @Override
+    public Optional<Vec3> departureTarget(ConsumerActor actor) {
+        CompoundTag tag = readTag(actor);
+        if (!tag.contains(DEPARTURE_TARGET_TAG)) {
+            return Optional.empty();
+        }
+        CompoundTag target = tag.getCompound(DEPARTURE_TARGET_TAG);
+        return Optional.of(new Vec3(target.getDouble("X"), target.getDouble("Y"), target.getDouble("Z")));
+    }
+
+    @Override
+    public void setDepartureTarget(ConsumerActor actor, Vec3 target) {
+        Objects.requireNonNull(target, "target");
+        CompoundTag saved = new CompoundTag();
+        saved.putDouble("X", target.x);
+        saved.putDouble("Y", target.y);
+        saved.putDouble("Z", target.z);
+        writeTag(actor).put(DEPARTURE_TARGET_TAG, saved);
+    }
+
+    @Override
+    public void clearDepartureTarget(ConsumerActor actor) {
+        writeTag(actor).remove(DEPARTURE_TARGET_TAG);
+    }
+
+    public boolean orphanDeparture(ConsumerActor actor) {
+        return readTag(actor).getBoolean(ORPHAN_DEPARTURE_TAG);
+    }
+
+    public void setOrphanDeparture(ConsumerActor actor, boolean value) {
+        writeTag(actor).putBoolean(ORPHAN_DEPARTURE_TAG, value);
+    }
+
+    public void clearOrphanDeparture(ConsumerActor actor) {
+        writeTag(actor).remove(ORPHAN_DEPARTURE_TAG);
     }
 
     public Optional<BlockPos> shopPos(ConsumerActor actor) {

@@ -12,7 +12,7 @@ import com.y271727uy.shopcore.core.order.ShopOrder;
 import com.y271727uy.shopcore.core.order.request.ItemListOrderRequest;
 import com.y271727uy.shopcore.core.order.request.OrderRequest;
 import com.y271727uy.shopcore.core.order.request.SingleItemOrderRequest;
-import com.y271727uy.shopcore.economic.algorithm.micromachinelearning.helper.OrderDemandLearning;
+import com.y271727uy.shopcore.core.algorithm.micromachinelearning.helper.OrderDemandLearning;
 import net.minecraft.world.item.ItemStack;
 
 import java.util.Comparator;

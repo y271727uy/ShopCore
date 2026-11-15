@@ -225,7 +225,6 @@ dependencies {
     modImplementation("dev.architectury:architectury-forge:9.2.14")
     modImplementation("maven.modrinth:jade:11.13.2+forge")
     modImplementation("maven.modrinth:some-assembly-required:FfaVwI1D")
-    modImplementation("maven.modrinth:avaritianeo:q9LjH7fG")
     modImplementation("maven.modrinth:list-core:whkkmSmY")
     modImplementation("maven.modrinth:touhou-little-maid:tuOQjuRE")
 
@@ -243,8 +242,8 @@ dependencies {
 
     modImplementation("maven.modrinth:kotlin-for-forge:Zsh14XeQ")
 
-    modRuntimeOnly("maven.modrinth:probejs:7.0.0")
-    modRuntimeOnly("maven.modrinth:manors-bounty:D0TALYL6")
+    //modRuntimeOnly("maven.modrinth:probejs:7.0.0")
+    //modRuntimeOnly("maven.modrinth:manors-bounty:D0TALYL6")
     modRuntimeOnly("maven.modrinth:geckolib:HVdLnQMI")
 
 

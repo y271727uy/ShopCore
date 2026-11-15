@@ -4,6 +4,7 @@ import com.y271727uy.shopcore.all.ModRecipes;
 import com.y271727uy.shopcore.integration.farmerstales.FarmersTalesQualityCompat;
 import com.y271727uy.shopcore.integration.sereneseasons.SereneSeasonsCompat;
 import com.y271727uy.shopcore.recipe.SellingBinRecipe;
+import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
@@ -91,6 +92,23 @@ public final class SellingBinClientPriceHelper {
             return Integer.toString(min);
         }
         return min + "-" + max;
+    }
+
+    public static Optional<Component> getMerchantInterestTooltip(SellingBinRecipe recipe, ItemStack stack) {
+        // Use the synced market snapshot; never query the server or roll a price while rendering.
+        long priceBonus = (long) getPriceBonus(recipe, stack) + getMaxQualityBonus(stack);
+        int clampedBonus = (int) Math.max(Integer.MIN_VALUE, Math.min(Integer.MAX_VALUE, priceBonus));
+        String translationKey;
+        // The entire quoted range must be at the floor, including recipes originally priced at 1.
+        if (recipe.getMaxOutputCount(clampedBonus) == 1) {
+            translationKey = "tooltip.shopcore.selling_bin.merchant_uninterested";
+        } else if (SellingBinClientPriceCache.getFloatingPriceBonus(recipe.getPriceKey(stack)) > 0) {
+            translationKey = "tooltip.shopcore.selling_bin.merchant_interested";
+        } else {
+            return Optional.empty();
+        }
+        return Optional.of(Component.translatable(translationKey)
+                .withStyle(ChatFormatting.GRAY, ChatFormatting.ITALIC));
     }
 
     public static String getSeasonalBonusText(SellingBinRecipe recipe, ItemStack stack) {

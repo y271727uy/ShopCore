@@ -35,6 +35,18 @@ public class MobConsumerNavigator implements ConsumerNavigator {
     }
 
     @Override
+    public Vec3 prepareDeparture(ConsumerActor actor, double distance) {
+        Mob mob = requireMob(actor);
+        float yaw = mob.getYRot() - 90.0F;
+        mob.setYRot(yaw);
+        mob.setYHeadRot(yaw);
+        mob.setYBodyRot(yaw);
+        double radians = Math.toRadians(yaw);
+        Vec3 direction = new Vec3(-Math.sin(radians), 0.0D, Math.cos(radians));
+        return mob.position().add(direction.scale(distance));
+    }
+
+    @Override
     public void discard(ConsumerActor actor) {
         requireEntity(actor).discard();
     }

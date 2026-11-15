@@ -4,11 +4,11 @@ import com.y271727uy.shopcore.all.ModBlockEntities;
 import com.y271727uy.shopcore.all.ModMenus;
 import com.y271727uy.shopcore.all.ModRecipes;
 import com.y271727uy.shopcore.block.SellingBinBlock;
-import com.y271727uy.shopcore.api.economic.ShopcoreCurrency;
+import com.y271727uy.shopcore.api.component.economic.ShopcoreCurrency;
 import com.y271727uy.shopcore.client.menu.SellingBinMenu;
-import com.y271727uy.shopcore.economic.currency.CurrencyDenomination;
-import com.y271727uy.shopcore.economic.currency.CurrencyOperationResult;
-import com.y271727uy.shopcore.economic.tax.Tax;
+import com.y271727uy.shopcore.api.component.economic.CurrencyDenomination;
+import com.y271727uy.shopcore.api.component.economic.CurrencyOperationResult;
+import com.y271727uy.shopcore.core.economic.tax.Tax;
 import com.y271727uy.shopcore.event.SellingBinEvents;
 import com.y271727uy.shopcore.gameplay.sellingbin.SellingBinGroupManager;
 import com.y271727uy.shopcore.recipe.SellingBinRecipe;
@@ -416,12 +416,14 @@ public class SellingBinBlockEntity extends BlockEntity implements MenuProvider {
         if (level.isClientSide) {
             return;
         }
-        runAllRecipes(level);
-        setChanged();
-        syncClientState(worldPosition, getBlockState());
+        runAllRecipes(level, true);
     }
 
     private void runAllRecipes(Level level) {
+        runAllRecipes(level, false);
+    }
+
+    private void runAllRecipes(Level level, boolean forceSync) {
         if (!(level instanceof ServerLevel serverLevel)) {
             return;
         }
@@ -449,55 +451,68 @@ public class SellingBinBlockEntity extends BlockEntity implements MenuProvider {
             planned.add(new Planned(slot, recipe, sellCount));
         }
 
-        // Execute all planned operations.
-        for (Planned p : planned) {
-            // Re-check slot still has an item and can consume 1.
-            var current = itemHandler.getStackInSlot(p.slot());
-            if (current.isEmpty()) continue;
-            ItemStack soldStack = current.copy();
+        // Keep per-slot dirty marking, but sync the completed inventory only once.
+        boolean wasInventorySyncSuppressed = suppressInventorySync;
+        boolean inventoryChanged = false;
+        suppressInventorySync = true;
+        try {
+            // Execute all planned operations.
+            for (Planned p : planned) {
+                // Re-check slot still has an item and can consume 1.
+                var current = itemHandler.getStackInSlot(p.slot());
+                if (current.isEmpty()) continue;
+                ItemStack soldStack = current.copy();
 
-            int available = current.getCount();
-            int toSell = Math.min(p.sellCount(), available);
-            if (toSell <= 0) continue;
+                int available = current.getCount();
+                int toSell = Math.min(p.sellCount(), available);
+                if (toSell <= 0) continue;
 
-            int inputCount = Math.max(1, p.recipe().getInputCount());
-            int requiredItems = toSell * inputCount;
-            if (requiredItems <= 0 || available < requiredItems) {
-                continue;
-            }
-
-            // produce outputs: each recipe batch triggers one roll (base/max) and totals are accumulated
-            int totalOut = 0;
-            for (int k = 0; k < toSell; k++) {
-                totalOut += p.recipe().rollOutputCount(level, current);
-            }
-            if (totalOut <= 0) continue;
-
-            var out = p.recipe().output.copy();
-            out.setCount(totalOut);
-
-            if (boundPlayerUuid != null) {
-                if (!depositBoundRevenue(level, out)) {
+                int inputCount = Math.max(1, p.recipe().getInputCount());
+                int requiredItems = toSell * inputCount;
+                if (requiredItems <= 0 || available < requiredItems) {
                     continue;
                 }
 
+                // produce outputs: each recipe batch triggers one roll (base/max) and totals are accumulated
+                int totalOut = 0;
+                for (int k = 0; k < toSell; k++) {
+                    totalOut += p.recipe().rollOutputCount(level, current);
+                }
+                if (totalOut <= 0) continue;
+
+                var out = p.recipe().output.copy();
+                out.setCount(totalOut);
+
+                if (boundPlayerUuid != null) {
+                    if (!depositBoundRevenue(level, out)) {
+                        continue;
+                    }
+
+                    inventoryChanged = true;
+                    itemHandler.extractItem(p.slot(), requiredItems, false);
+                    marketChanged |= SellingBinGroupManager.recordSale(serverLevel, p.recipe(), soldStack, toSell);
+                    continue;
+                }
+
+                // consume all chosen inputs
+                inventoryChanged = true;
                 itemHandler.extractItem(p.slot(), requiredItems, false);
                 marketChanged |= SellingBinGroupManager.recordSale(serverLevel, p.recipe(), soldStack, toSell);
-                continue;
+
+                var remaining = out;
+                for (int i = 0; i < slots; i++) {
+                    remaining = itemHandler.insertItem(i, remaining, false);
+                    if (remaining.isEmpty()) break;
+                }
+
+                if (!remaining.isEmpty()) {
+                    net.minecraft.world.level.block.Block.popResource(level, worldPosition, remaining);
+                }
             }
-
-            // consume all chosen inputs
-            itemHandler.extractItem(p.slot(), requiredItems, false);
-            marketChanged |= SellingBinGroupManager.recordSale(serverLevel, p.recipe(), soldStack, toSell);
-
-            var remaining = out;
-            for (int i = 0; i < slots; i++) {
-                remaining = itemHandler.insertItem(i, remaining, false);
-                if (remaining.isEmpty()) break;
-            }
-
-            if (!remaining.isEmpty()) {
-                net.minecraft.world.level.block.Block.popResource(level, worldPosition, remaining);
+        } finally {
+            suppressInventorySync = wasInventorySyncSuppressed;
+            if (!suppressInventorySync && (inventoryChanged || forceSync)) {
+                syncClientState(worldPosition, getBlockState());
             }
         }
 

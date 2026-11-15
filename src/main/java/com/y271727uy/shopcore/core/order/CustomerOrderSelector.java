@@ -1,15 +1,16 @@
 package com.y271727uy.shopcore.core.order;
 
-import com.y271727uy.shopcore.api.economic.ShopcorePrices;
+import com.y271727uy.shopcore.api.component.economic.ShopcorePrices;
 import com.y271727uy.shopcore.core.menu.MenuItemCandidates;
 import com.y271727uy.shopcore.core.market.tier.MarketTierConfig;
 import com.y271727uy.shopcore.core.market.tier.MarketTierConfigs;
 import com.y271727uy.shopcore.core.unlock.FeatureAccessContext;
 import com.y271727uy.shopcore.core.unlock.FeatureAccessService;
 import com.y271727uy.shopcore.core.unlock.FeatureKey;
-import com.y271727uy.shopcore.economic.algorithm.micromachinelearning.routing.BatchOrderCandidateScorer;
-import com.y271727uy.shopcore.economic.algorithm.micromachinelearning.routing.ScoredOrderCandidate;
-import com.y271727uy.shopcore.economic.price.Price;
+import com.y271727uy.shopcore.core.algorithm.micromachinelearning.routing.BatchOrderCandidateScorer;
+import com.y271727uy.shopcore.core.algorithm.nashequilibrium.NashMarketPricing;
+import com.y271727uy.shopcore.core.algorithm.micromachinelearning.routing.ScoredOrderCandidate;
+import com.y271727uy.shopcore.api.component.economic.PriceQuote;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
 import net.minecraftforge.registries.ForgeRegistries;
@@ -99,7 +100,7 @@ public final class CustomerOrderSelector {
                     continue;
                 }
 
-                int unitPrice = unitPrice(listing, stack);
+                int unitPrice = unitPrice(context, listing, stack, itemId);
                 if (unitPrice <= 0) {
                     continue;
                 }
@@ -147,13 +148,19 @@ public final class CustomerOrderSelector {
         return candidates.get(candidates.size() - 1);
     }
 
-    private static int unitPrice(ShopListing listing, ItemStack stack) {
+    private static int unitPrice(OrderSelectionContext context, ShopListing listing, ItemStack stack, ResourceLocation itemId) {
         if (listing.pricingMode() == PricingMode.MANUAL) {
             return listing.manualUnitPrice();
         }
 
-        Price price = ShopcorePrices.getPrice(stack);
-        return price.totalPrice();
+        int basePrice = ShopcorePrices.findPrice(stack).map(PriceQuote::totalValue).orElse(0);
+        if (basePrice <= 0) {
+            return basePrice;
+        }
+        // Automatic prices follow the Nash market balance inside the demand category.
+        NashMarketPricing nash = NashMarketPricing.instance();
+        nash.registerStrategy(listing.demandCategory(), itemId);
+        return nash.applyTo(listing.demandCategory(), itemId, basePrice, context.gameTime());
     }
 
     private static int chooseQuantity(OrderSelectionContext context, ShopListing listing, int unitPrice) {

@@ -6,6 +6,7 @@ import com.y271727uy.shopcore.core.consumer.common.wait.QueueConsumerPhase;
 import com.y271727uy.shopcore.core.order.OrderLine;
 import com.y271727uy.shopcore.core.order.ShopOrder;
 import com.y271727uy.shopcore.core.order.book.ShopOrderBook;
+import com.y271727uy.shopcore.core.order.lifecycle.OrderLifecycleCommit;
 import com.y271727uy.shopcore.core.order.delivery.OrderDeliveryResult;
 import com.y271727uy.shopcore.core.order.delivery.OrderDeliveryService;
 import com.y271727uy.shopcore.core.order.evaluator.OrderEvaluation;
@@ -17,9 +18,12 @@ import com.y271727uy.shopcore.core.order.settlement.OrderSettlementBridgeContext
 import com.y271727uy.shopcore.core.order.settlement.OrderSettlementResult;
 import com.y271727uy.shopcore.core.shop.instance.ShopInstance;
 import com.y271727uy.shopcore.core.shop.runtime.ShopBlockRuntimeHolder;
-import com.y271727uy.shopcore.economic.algorithm.micromachinelearning.helper.OrderDemandLearning;
+import com.y271727uy.shopcore.core.algorithm.micromachinelearning.helper.OrderDemandLearning;
+import com.y271727uy.shopcore.core.algorithm.nashequilibrium.NashMarketPricing;
 import com.y271727uy.shopcore.integration.farmerstales.FarmersTalesFoodExpiryCompat;
 import net.minecraft.network.chat.Component;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraftforge.registries.ForgeRegistries;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.ItemStack;
 
@@ -72,6 +76,15 @@ public final class OrderInteractionService {
             OrderPromptSink promptSink,
             OrderPromptClearer promptClearer
     ) {
+        return deliverToRecordedCustomer(player, actor, input, memory, holder, promptSink, promptClearer,
+                holder::shopcore$runtimeChanged);
+    }
+
+    public static OrderDeliveryInteractionResult deliverToRecordedCustomer(
+            ServerPlayer player, ConsumerActor actor, ItemStack input, ConsumerMemory memory,
+            ShopBlockRuntimeHolder holder, OrderPromptSink promptSink, OrderPromptClearer promptClearer,
+            Runnable changed
+    ) {
         Objects.requireNonNull(player, "player");
         Objects.requireNonNull(actor, "actor");
         Objects.requireNonNull(input, "input");
@@ -79,6 +92,7 @@ public final class OrderInteractionService {
         Objects.requireNonNull(holder, "holder");
         Objects.requireNonNull(promptSink, "promptSink");
         Objects.requireNonNull(promptClearer, "promptClearer");
+        Objects.requireNonNull(changed, "changed");
 
         if (input.isEmpty()) {
             return OrderDeliveryInteractionResult.failed(OrderInteractionStatus.INPUT_EMPTY);
@@ -109,27 +123,29 @@ public final class OrderInteractionService {
             };
         }
 
-        ShopOrder afterOrder = deliveryResult.afterOrder();
-        holder.shopcore$setOrderBook(orderBook.replace(afterOrder));
-        if (!player.getAbilities().instabuild) {
-            input.setCount(deliveryResult.remainingInput().getCount());
-        }
-        if (deliveredRottenFood) {
-            player.sendSystemMessage(Component.translatable(player.getRandom().nextBoolean()
-                    ? "message.shopcore.customer_rotten_food_angry"
-                    : "message.shopcore.customer_rotten_food_sick"));
-        }
+        try (var commit = OrderLifecycleCommit.begin(holder, changed)) {
+            ShopOrder afterOrder = deliveryResult.afterOrder();
+            holder.shopcore$setOrderBook(orderBook.replace(afterOrder));
+            if (!player.getAbilities().instabuild) {
+                input.setCount(deliveryResult.remainingInput().getCount());
+            }
+            if (deliveredRottenFood) {
+                player.sendSystemMessage(Component.translatable(player.getRandom().nextBoolean()
+                        ? "message.shopcore.customer_rotten_food_angry"
+                        : "message.shopcore.customer_rotten_food_sick"));
+            }
 
-        if (deliveryResult.completedOrder()) {
-            OrderSettlementResult settlement = settleCompletedOrder(player, holder, afterOrder);
-            memory.setPhase(actor, QueueConsumerPhase.LEAVING);
-            memory.clearOrderId(actor);
-            promptClearer.clear(player);
-            return OrderDeliveryInteractionResult.completed(afterOrder, deliveryResult, settlement);
-        }
+            if (deliveryResult.completedOrder()) {
+                OrderSettlementResult settlement = settleCompletedOrder(player, holder, afterOrder);
+                memory.setPhase(actor, QueueConsumerPhase.LEAVING);
+                memory.clearOrderId(actor);
+                promptClearer.clear(player);
+                return OrderDeliveryInteractionResult.completed(afterOrder, deliveryResult, settlement);
+            }
 
-        promptSink.show(player, OrderPromptFactory.fromOrder(afterOrder));
-        return OrderDeliveryInteractionResult.delivered(afterOrder, deliveryResult);
+            promptSink.show(player, OrderPromptFactory.fromOrder(afterOrder));
+            return OrderDeliveryInteractionResult.delivered(afterOrder, deliveryResult);
+        }
     }
 
     private static Optional<ShopOrder> activeOrderFor(
@@ -160,10 +176,18 @@ public final class OrderInteractionService {
                 shop,
                 completedOrder,
                 evaluation,
-                OrderSettlementBinding.currencyItems(),
+                shop.settlementAccountUuid()
+                        .map(account -> OrderSettlementBinding.accountDeposit(account, shop.settlementTaxExempt()))
+                        .orElseGet(OrderSettlementBinding::currencyItems),
                 0.0D
         ));
-        holder.shopcore$setShopInstance(shop.withCurrentSession(settlement.sessionStats()));
+
+        // Update session stats and add reputation to shop
+        ShopInstance updatedShop = shop
+                .withCurrentSession(settlement.sessionStats())
+                .addReputation(settlement.reputationReward());
+        holder.shopcore$setShopInstance(updatedShop);
+
         giveCurrencyReward(player, settlement);
         return settlement;
     }
@@ -171,11 +195,15 @@ public final class OrderInteractionService {
     private static void learnSuccessfulOrderDemand(ShopOrder completedOrder, ShopInstance shop, long nowTick) {
         for (OrderLine line : completedOrder.lines()) {
             OrderDemandLearning.recordSuccessfulOrderLine(shop, line, nowTick);
+            ResourceLocation itemId = ForgeRegistries.ITEMS.getKey(line.requestedItem().getItem());
+            if (itemId != null) {
+                NashMarketPricing.instance().recordSale(itemId, line.deliveredCount(), line.unitPrice(), nowTick);
+            }
         }
     }
 
     private static void giveCurrencyReward(ServerPlayer player, OrderSettlementResult settlement) {
-        for (ItemStack reward : settlement.checkoutResult().currencyReward()) {
+        for (ItemStack reward : settlement.checkoutResult().currency()) {
             ItemStack remaining = reward.copy();
             if (!player.getInventory().add(remaining)) {
                 player.drop(remaining, false);

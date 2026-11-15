@@ -2,6 +2,8 @@ package com.y271727uy.shopcore.item.card;
 
 import com.y271727uy.shopcore.block.SellingBinBlock;
 import com.y271727uy.shopcore.block.entity.SellingBinBlockEntity;
+import com.y271727uy.shopcore.api.shop.ShopAccountBindingResult;
+import com.y271727uy.shopcore.api.shop.ShopcoreShops;
 import net.minecraft.ChatFormatting;
 import net.minecraft.MethodsReturnNonnullByDefault;
 import net.minecraft.core.BlockPos;
@@ -12,6 +14,7 @@ import net.minecraft.resources.ResourceKey;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.InteractionResultHolder;
@@ -57,7 +60,32 @@ public class BankCardItem extends Item {
 
     @Override
     public InteractionResult useOn(UseOnContext context) {
+        BlockEntity blockEntity = context.getLevel().getBlockEntity(context.getClickedPos());
+        if (ShopcoreShops.isShop(blockEntity)) {
+            return context.getPlayer() instanceof ServerPlayer serverPlayer
+                    ? bindShopAccount(blockEntity, serverPlayer)
+                    : InteractionResult.SUCCESS;
+        }
         return useOnSellingBin(context, isTaxExempt());
+    }
+
+    public InteractionResult bindShopAccount(BlockEntity shop, Player player) {
+        if (!(player instanceof ServerPlayer serverPlayer)) {
+            return InteractionResult.SUCCESS;
+        }
+        ShopAccountBindingResult result = ShopcoreShops.bindSettlementAccount(
+                shop, serverPlayer.getUUID(), isTaxExempt());
+        if (result == ShopAccountBindingResult.BOUND) {
+            serverPlayer.displayClientMessage(Component.translatable("message.shopcore.shop.bank_bound"), false);
+            return InteractionResult.CONSUME;
+        }
+        if (result == ShopAccountBindingResult.ALREADY_BOUND_TO_ACCOUNT
+                && ShopcoreShops.unbindSettlementAccount(shop, serverPlayer.getUUID()) == ShopAccountBindingResult.UNBOUND) {
+            serverPlayer.displayClientMessage(Component.translatable("message.shopcore.shop.bank_unbound"), false);
+        } else if (result == ShopAccountBindingResult.BOUND_TO_OTHER_ACCOUNT) {
+            serverPlayer.displayClientMessage(Component.translatable("message.shopcore.shop.bank_bound_other"), false);
+        }
+        return InteractionResult.CONSUME;
     }
 
     @Override
@@ -66,6 +94,7 @@ public class BankCardItem extends Item {
         tooltip.add(Component.translatable("tooltip.shopcore.bank_card.bind_hint").withStyle(ChatFormatting.DARK_GRAY));
         tooltip.add(Component.translatable("tooltip.shopcore.bank_card.unbind_hint").withStyle(ChatFormatting.DARK_GRAY));
         tooltip.add(Component.translatable("tooltip.shopcore.bank_card.notification_hint").withStyle(ChatFormatting.DARK_GRAY));
+        tooltip.add(Component.translatable("tooltip.shopcore.bank_card.shop_bind_hint").withStyle(ChatFormatting.DARK_GRAY));
         appendTaxTooltip(tooltip);
     }
 

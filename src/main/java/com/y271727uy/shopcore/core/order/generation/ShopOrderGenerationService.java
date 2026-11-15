@@ -7,7 +7,7 @@ import com.y271727uy.shopcore.core.order.ShopListing;
 import com.y271727uy.shopcore.core.order.ShopOrder;
 import com.y271727uy.shopcore.core.shop.diagnostic.ShopDiagnosticCode;
 import com.y271727uy.shopcore.core.shop.tier.ShopTierConfigs;
-import com.y271727uy.shopcore.economic.algorithm.micromachinelearning.helper.OrderDemandLearning;
+import com.y271727uy.shopcore.core.algorithm.micromachinelearning.helper.OrderDemandLearning;
 
 import java.util.List;
 import java.util.Objects;

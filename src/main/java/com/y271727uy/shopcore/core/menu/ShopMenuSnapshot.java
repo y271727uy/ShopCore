@@ -1,6 +1,8 @@
 package com.y271727uy.shopcore.core.menu;
 
 import com.y271727uy.shopcore.core.shop.instance.ShopId;
+import net.minecraft.world.item.Item;
+import net.minecraft.world.item.ItemStack;
 
 import java.util.Comparator;
 import java.util.List;
@@ -37,5 +39,24 @@ public record ShopMenuSnapshot(
 
     public boolean isEmpty() {
         return enabledEntries().isEmpty();
+    }
+
+    /**
+     * Check if the menu has any listing with the given menu ID
+     */
+    public boolean hasMenuId(String menuId) {
+        return entries.stream()
+            .filter(ShopMenuEntry::enabled)
+            .anyMatch(entry -> entry.menuId().equals(menuId));
+    }
+
+    /**
+     * Check if the menu has any listing for the given item
+     * (requires resolving menu Isto items via tag system - not implemented here)
+     */
+    public boolean hasListing(Item item) {
+        // TODO: This requires MenuResolver to resolve menuId -> ItemStack
+        // For now, special customers should use hasMenuId() or check directly
+        throw new UnsupportedOperationException("Use hasMenuId() or provide MenuResolver");
     }
 }

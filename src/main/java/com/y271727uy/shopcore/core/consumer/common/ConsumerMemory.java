@@ -2,6 +2,8 @@ package com.y271727uy.shopcore.core.consumer.common;
 
 import com.y271727uy.shopcore.core.consumer.common.wait.QueueConsumerPhase;
 
+import net.minecraft.world.phys.Vec3;
+
 import java.util.Optional;
 import java.util.UUID;
 
@@ -19,4 +21,10 @@ public interface ConsumerMemory {
     void setOrderId(ConsumerActor actor, UUID orderId);
 
     void clearOrderId(ConsumerActor actor);
+
+    Optional<Vec3> departureTarget(ConsumerActor actor);
+
+    void setDepartureTarget(ConsumerActor actor, Vec3 target);
+
+    void clearDepartureTarget(ConsumerActor actor);
 }

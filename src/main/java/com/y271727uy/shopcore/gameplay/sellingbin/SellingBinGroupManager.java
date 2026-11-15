@@ -34,6 +34,9 @@ public final class SellingBinGroupManager {
     private static final Object GROUP_CACHE_LOCK = new Object();
 
     private static Map<String, SellingBinGroup> cachedGroups;
+    private static Map<ResourceLocation, Boolean> cachedSRegressionByPriceKey;
+    private static String cachedSeasonId;
+    private static Map<ResourceLocation, Integer> cachedSeasonalBonuses;
 
     private SellingBinGroupManager() {
     }
@@ -88,21 +91,23 @@ public final class SellingBinGroupManager {
         ResourceLocation priceKey = recipe.getPriceKey(soldStack);
         long currentDay = Math.floorDiv(level.getDayTime(), DAY_LENGTH_TICKS);
         boolean changed = marketData.recordSale(priceKey, currentDay);
-        changed |= marketData.addVirtualStock(priceKey, soldCount);
+        int virtualStockAmount = TradeBalanceMultiplierConfig.scaledVirtualStock(priceKey, soldCount);
+        changed |= marketData.addVirtualStock(priceKey, virtualStockAmount);
         return changed;
     }
 
     public static void invalidateCachedGroups() {
         synchronized (GROUP_CACHE_LOCK) {
             cachedGroups = null;
+            cachedSRegressionByPriceKey = null;
+            cachedSeasonId = null;
+            cachedSeasonalBonuses = null;
         }
     }
 
     public static boolean refreshForElapsedDays(ServerLevel level) {
         SellingBinMarketSavedData marketData = SellingBinMarketSavedData.get(level);
         long currentDay = Math.floorDiv(level.getDayTime(), DAY_LENGTH_TICKS);
-        Map<String, SellingBinGroup> groups = collectGroups(level);
-        Map<ResourceLocation, Boolean> sRegressionByPriceKey = collectSRegressionModes(level);
         String currentSeasonId = SereneSeasonsCompat.getCurrentSeasonId(level).orElse("");
 
         if (!marketData.isInitialized()) {
@@ -117,6 +122,11 @@ public final class SellingBinGroupManager {
         if (currentDay <= lastProcessedDay) {
             return updatedPrices;
         }
+
+        // Recipe-derived caches are only needed when a new game day is processed.
+        // This keeps the normal per-tick path independent of the recipe count.
+        Map<String, SellingBinGroup> groups = collectGroups(level);
+        Map<ResourceLocation, Boolean> sRegressionByPriceKey = collectSRegressionModes(level);
 
         for (long day = lastProcessedDay + 1; day <= currentDay; day++) {
             Map<ResourceLocation, Integer> previousFloatingBonuses = marketData.snapshotFloatingPriceBonuses();
@@ -141,6 +151,15 @@ public final class SellingBinGroupManager {
         }
     }
 
+    private static Map<ResourceLocation, Boolean> collectSRegressionModes(ServerLevel level) {
+        synchronized (GROUP_CACHE_LOCK) {
+            if (cachedSRegressionByPriceKey == null) {
+                cachedSRegressionByPriceKey = buildSRegressionModes(level);
+            }
+            return Collections.unmodifiableMap(cachedSRegressionByPriceKey);
+        }
+    }
+
     private static Map<String, SellingBinGroup> buildGroups(ServerLevel level) {
         Map<String, SellingBinGroup> groups = new LinkedHashMap<>();
 
@@ -157,7 +176,7 @@ public final class SellingBinGroupManager {
         return groups;
     }
 
-    private static Map<ResourceLocation, Boolean> collectSRegressionModes(ServerLevel level) {
+    private static Map<ResourceLocation, Boolean> buildSRegressionModes(ServerLevel level) {
         Map<ResourceLocation, Boolean> sRegressionByPriceKey = new HashMap<>();
         Set<ResourceLocation> warnedPriceKeys = new HashSet<>();
 
@@ -183,7 +202,17 @@ public final class SellingBinGroupManager {
     }
 
     private static boolean refreshSeasonalAdjustments(ServerLevel level, SellingBinMarketSavedData marketData, String currentSeasonId) {
-        return marketData.setSeasonalPriceBonuses(buildSeasonalBonuses(level, currentSeasonId));
+        Map<ResourceLocation, Integer> seasonalBonuses;
+        synchronized (GROUP_CACHE_LOCK) {
+            if (cachedSeasonalBonuses != null && currentSeasonId.equals(cachedSeasonId)) {
+                return false;
+            }
+
+            cachedSeasonalBonuses = buildSeasonalBonuses(level, currentSeasonId);
+            cachedSeasonId = currentSeasonId;
+            seasonalBonuses = cachedSeasonalBonuses;
+        }
+        return marketData.setSeasonalPriceBonuses(seasonalBonuses);
     }
 
     private static Map<ResourceLocation, Integer> buildSeasonalBonuses(ServerLevel level, String currentSeasonId) {

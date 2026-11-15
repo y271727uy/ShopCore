@@ -62,15 +62,19 @@ public final class ShopcoreClientEvents {
 
         @SubscribeEvent
         public static void onRenderTooltipPre(RenderTooltipEvent.GatherComponents event) {
-            SellingBinClientPriceHelper.findRecipe(event.getItemStack()).ifPresent(recipe -> event.getTooltipElements().add(Either.right(
-                    new SellingBinTooltipComponent(
-                            SellingBinClientPriceHelper.getDisplayInput(recipe, event.getItemStack()),
-                            recipe.getInputCount(),
-                            SellingBinClientPriceHelper.getDisplayOutput(recipe, event.getItemStack()),
-                            SellingBinClientPriceHelper.getPriceText(recipe, event.getItemStack()),
-                            SellingBinClientPriceHelper.getSeasonalBonusText(recipe, event.getItemStack())
-                    )
-            )));
+            SellingBinClientPriceHelper.findRecipe(event.getItemStack()).ifPresent(recipe -> {
+                event.getTooltipElements().add(Either.right(
+                        new SellingBinTooltipComponent(
+                                SellingBinClientPriceHelper.getDisplayInput(recipe, event.getItemStack()),
+                                recipe.getInputCount(),
+                                SellingBinClientPriceHelper.getDisplayOutput(recipe, event.getItemStack()),
+                                SellingBinClientPriceHelper.getPriceText(recipe, event.getItemStack()),
+                                SellingBinClientPriceHelper.getSeasonalBonusText(recipe, event.getItemStack())
+                        )
+                ));
+                SellingBinClientPriceHelper.getMerchantInterestTooltip(recipe, event.getItemStack())
+                        .ifPresent(tooltip -> event.getTooltipElements().add(Either.left(tooltip)));
+            });
         }
 
         @SubscribeEvent

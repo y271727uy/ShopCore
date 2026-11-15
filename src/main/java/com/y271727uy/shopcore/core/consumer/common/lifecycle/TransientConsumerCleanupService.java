@@ -28,6 +28,14 @@ public final class TransientConsumerCleanupService {
             Predicate<Entity> candidatePredicate,
             double searchRadius
     ) {
+        return discardForShop(level, shopPos, knownConsumerIds, memory, candidatePredicate, searchRadius,
+                CustomerOverheadOrderPromptService::clear);
+    }
+
+    public static int discardForShop(ServerLevel level, BlockPos shopPos, List<UUID> knownConsumerIds,
+            EntityPersistentConsumerMemory memory, Predicate<Entity> candidatePredicate, double searchRadius,
+            java.util.function.Consumer<Entity> beforeDiscard) {
+        Objects.requireNonNull(beforeDiscard, "beforeDiscard");
         Objects.requireNonNull(level, "level");
         Objects.requireNonNull(shopPos, "shopPos");
         Objects.requireNonNull(knownConsumerIds, "knownConsumerIds");
@@ -49,10 +57,11 @@ public final class TransientConsumerCleanupService {
         int discarded = 0;
         for (UUID consumerId : resetIds) {
             Entity entity = level.getEntity(consumerId);
-            if (entity == null) {
+            if (entity == null || !candidatePredicate.test(entity)
+                    || memory.orphanDeparture(new EntityConsumerActor(entity))) {
                 continue;
             }
-            CustomerOverheadOrderPromptService.clear(entity);
+            beforeDiscard.accept(entity);
             entity.discard();
             discarded++;
         }

@@ -13,6 +13,8 @@ import net.minecraft.nbt.NbtUtils;
 import net.minecraft.resources.ResourceLocation;
 
 import java.util.Objects;
+import java.util.Optional;
+import java.util.UUID;
 
 public final class ShopInstanceNbt {
     public static final String SHOP = "Shop";
@@ -24,6 +26,9 @@ public final class ShopInstanceNbt {
     private static final String OPERATING_POLICY = "OperatingPolicy";
     private static final String OPERATING_STATE = "OperatingState";
     private static final String CURRENT_SESSION = "CurrentSession";
+    private static final String REPUTATION = "Reputation";
+    private static final String SETTLEMENT_ACCOUNT = "SettlementAccount";
+    private static final String SETTLEMENT_TAX_EXEMPT = "SettlementTaxExempt";
 
     private ShopInstanceNbt() {
     }
@@ -38,6 +43,9 @@ public final class ShopInstanceNbt {
         tag.putString(OPERATING_POLICY, shop.operatingPolicy().id().toString());
         tag.putString(OPERATING_STATE, shop.operatingState().name());
         tag.put(CURRENT_SESSION, BusinessSessionStatsNbt.save(shop.currentSession()));
+        tag.putDouble(REPUTATION, shop.reputation());
+        shop.settlementAccountUuid().ifPresent(uuid -> tag.putUUID(SETTLEMENT_ACCOUNT, uuid));
+        tag.putBoolean(SETTLEMENT_TAX_EXEMPT, shop.settlementTaxExempt());
         return tag;
     }
 
@@ -54,7 +62,13 @@ public final class ShopInstanceNbt {
         BusinessSessionStats currentSession = tag.contains(CURRENT_SESSION)
                 ? BusinessSessionStatsNbt.load(tag.getCompound(CURRENT_SESSION))
                 : BusinessSessionStats.empty();
-        return new ShopInstance(shopId, shopPos, shopTier, marketTier, operatingPolicy, operatingState, currentSession);
+        double reputation = tag.contains(REPUTATION) ? Math.max(0.0, tag.getDouble(REPUTATION)) : 0.0;
+        Optional<UUID> settlementAccount = tag.hasUUID(SETTLEMENT_ACCOUNT)
+                ? Optional.of(tag.getUUID(SETTLEMENT_ACCOUNT))
+                : Optional.empty();
+        boolean settlementTaxExempt = settlementAccount.isPresent() && tag.getBoolean(SETTLEMENT_TAX_EXEMPT);
+        return new ShopInstance(shopId, shopPos, shopTier, marketTier, operatingPolicy, operatingState,
+                currentSession, reputation, settlementAccount, settlementTaxExempt);
     }
 
     private static OperatingPolicyKey operatingPolicy(String value) {

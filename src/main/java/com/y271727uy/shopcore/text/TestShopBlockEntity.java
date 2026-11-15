@@ -1,331 +1,100 @@
 package com.y271727uy.shopcore.text;
 
 import com.y271727uy.shopcore.ShopcoreMod;
-import com.y271727uy.shopcore.core.consumer.common.ConsumerActor;
-import com.y271727uy.shopcore.core.consumer.common.entity.EntityConsumerActor;
-import com.y271727uy.shopcore.core.consumer.common.lifecycle.TransientConsumerCleanupService;
-import com.y271727uy.shopcore.core.consumer.common.layout.ConsumerLayoutRole;
-import com.y271727uy.shopcore.core.consumer.common.layout.ConsumerLayoutSlot;
-import com.y271727uy.shopcore.core.consumer.common.layout.ConsumerLayoutTransform;
-import com.y271727uy.shopcore.core.consumer.common.wait.HorizontalQueue;
-import com.y271727uy.shopcore.core.consumer.common.wait.HorizontalQueue.HorizontalQueueContext;
-import com.y271727uy.shopcore.core.consumer.common.wait.HorizontalQueue.HorizontalQueueLayout;
-import com.y271727uy.shopcore.core.consumer.common.wait.QueueConsumerPhase;
-import com.github.tartaricacid.touhoulittlemaid.entity.passive.EntityMaid;
-import com.y271727uy.shopcore.core.consumer.maid.TouhouMaidConsumerActor;
-import com.y271727uy.shopcore.core.consumer.maid.TouhouMaidConsumerMemory;
-import com.y271727uy.shopcore.core.consumer.maid.TouhouMaidConsumerNavigator;
-import com.y271727uy.shopcore.core.consumer.maid.TouhouMaidConsumers;
-import com.y271727uy.shopcore.core.market.demand.DemandCategoryKey;
-import com.y271727uy.shopcore.core.market.demand.OrderComplexity;
-import com.y271727uy.shopcore.core.menu.ListingMenuEntry;
-import com.y271727uy.shopcore.core.menu.pool.DemandPoolCatalog;
-import com.y271727uy.shopcore.core.order.CustomerProfiles;
-import com.y271727uy.shopcore.core.order.OrderLine;
-import com.y271727uy.shopcore.core.order.ShopOrder;
-import com.y271727uy.shopcore.core.order.ShopListing;
-import com.y271727uy.shopcore.core.order.book.ShopOrderBook;
-import com.y271727uy.shopcore.core.order.generation.FixedIntervalOrderGenerationSchedule;
-import com.y271727uy.shopcore.core.order.interaction.OrderDeliveryInteractionResult;
-import com.y271727uy.shopcore.core.order.interaction.OrderInteractionService;
-import com.y271727uy.shopcore.core.order.interaction.OrderInteractionStatus;
-import com.y271727uy.shopcore.core.order.prompt.overhead.OverheadOrderPromptController;
-import com.y271727uy.shopcore.core.order.prompt.overhead.CustomerOverheadOrderPromptService;
-import com.y271727uy.shopcore.core.order.prompt.screen.PlayerScreenOrderPromptService;
-import com.y271727uy.shopcore.core.shop.blockentity.AbstractShopBlockEntity;
-import com.y271727uy.shopcore.core.shop.opening.ShopOpeningRuleSet;
-import com.y271727uy.shopcore.core.shop.opening.rule.MinListingCountRule;
-import com.y271727uy.shopcore.core.shop.runtime.ShopBlockRuntimeBridge;
-import com.y271727uy.shopcore.core.shop.runtime.ShopRuntimeTickResult;
+import com.y271727uy.shopcore.api.component.menu.MenuListing;
+import com.y271727uy.shopcore.api.component.menu.MenuSource;
+import com.y271727uy.shopcore.api.component.order.DeliveryReceipt;
+import com.y271727uy.shopcore.api.preset.ShopPresets;
+import com.y271727uy.shopcore.api.shop.ShopBlockEntity;
+import com.y271727uy.shopcore.api.shop.ShopDefinition;
 import com.y271727uy.shopcore.integration.farmerstales.FarmersTalesFoodExpiryCompat;
-import net.minecraft.network.chat.Component;
-import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.nbt.CompoundTag;
-import net.minecraft.nbt.ListTag;
-import net.minecraft.nbt.NbtUtils;
+import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.state.BlockState;
-import net.minecraft.world.phys.Vec3;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
-import java.util.Set;
-import java.util.UUID;
-import java.util.stream.Collectors;
-
-public class TestShopBlockEntity extends AbstractShopBlockEntity {
-    private static final String CONSUMERS_TAG = "TestConsumers";
+/** Reference consumer of the public API: configuration and gameplay feedback only. */
+public class TestShopBlockEntity extends ShopBlockEntity {
     private static final String DEPARTURE_PARTICLES_SHOWN_TAG = "TestDepartureParticlesShown";
-    private static final long OVERHEAD_ORDER_WAIT_TICKS = 20L * 2L;
-    private static final long RUNTIME_TICK_INTERVAL = 20L * 5L;
-    private static final DemandPoolCatalog DEMAND_POOL_CATALOG = new DemandPoolCatalog();
-    private static final ShopOpeningRuleSet OPENING_RULES = ShopOpeningRuleSet.of(
+    private static final ShopDefinition DEFINITION = ShopPresets.horizontalQueue(
             ResourceLocation.fromNamespaceAndPath(ShopcoreMod.MODID, "test_shop"),
-            List.of(new MinListingCountRule(1))
-    );
-    private static final FixedIntervalOrderGenerationSchedule ORDER_GENERATION_SCHEDULE =
-            FixedIntervalOrderGenerationSchedule.every(20L * 10L);
-    private static final long ORDER_TTL_TICKS = 20L * 60L;
-
-    private final ShopBlockRuntimeBridge runtimeBridge = new ShopBlockRuntimeBridge();
-    private final HorizontalQueue queueBehavior = new HorizontalQueue();
-    private final TouhouMaidConsumerNavigator consumerNavigator = new TouhouMaidConsumerNavigator();
-    private final TouhouMaidConsumerMemory consumerMemory = new TouhouMaidConsumerMemory();
-    private final OverheadOrderPromptController overheadPromptController =
-            new OverheadOrderPromptController(OVERHEAD_ORDER_WAIT_TICKS, Component.literal("\u7b49\u5f85\u4e2d..."));
-    private final List<UUID> consumerIds = new ArrayList<>();
-    private ShopRuntimeTickResult lastTickResult;
-    private boolean resetTransientConsumersAfterLoad;
-    private boolean forceRuntimeTick = true;
+            MenuSource.fixed(new MenuListing("minecraft:apple", 4, 4),
+                    new MenuListing("minecraft:wheat", 2, 4),
+                    new MenuListing("minecraft:sweet_berries", 3, 4),
+                    new MenuListing("minecraft:potato", 2, 4)),
+            "TestConsumers", "test.shopcore.delivery");
 
     public TestShopBlockEntity(BlockPos pos, BlockState state) {
-        super(TestShopRegistry.TEST_SHOP_BLOCK_ENTITY.get(), pos, state);
+        super(TestShopRegistry.TEST_SHOP_BLOCK_ENTITY.get(), pos, state, DEFINITION);
     }
 
     public static void serverTick(Level level, BlockPos pos, BlockState state, TestShopBlockEntity entity) {
-        if (level.isClientSide) {
-            return;
-        }
-        entity.tickRuntimeIfDue((ServerLevel) level);
-        entity.tickTestConsumers((ServerLevel) level, state);
+        if (level instanceof ServerLevel serverLevel) entity.shopRuntime().tick(serverLevel);
     }
 
-    private void tickRuntimeIfDue(ServerLevel level) {
-        if (!forceRuntimeTick && level.getGameTime() % RUNTIME_TICK_INTERVAL != 0L) {
-            return;
-        }
-        forceRuntimeTick = false;
-        lastTickResult = tickShopRuntime(runtimeBridge, new ShopBlockRuntimeBridge.ShopBlockRuntimeTickInput(
-                DEMAND_POOL_CATALOG,
-                OPENING_RULES,
-                Optional.of(CustomerProfiles.COMMON),
-                Optional.empty(),
-                ORDER_GENERATION_SCHEDULE,
-                Map.of(),
-                true,
-                0.0D,
-                level.getDayTime(),
-                level.getGameTime(),
-                ORDER_TTL_TICKS,
-                level.random
-        ));
+    @Override
+    protected Direction shopFacing() {
+        return getBlockState().hasProperty(TestShopBlock.FACING)
+                ? getBlockState().getValue(TestShopBlock.FACING) : Direction.NORTH;
     }
 
-    public void toggleOpenRequested() {
-        initializeRuntime();
-        boolean closing = shopcore$openRequested();
-        shopcore$setOpenRequested(!shopcore$openRequested());
-        forceRuntimeTick = true;
-        if (closing && level instanceof ServerLevel serverLevel) {
-            closeTestShopRuntime(serverLevel);
-        }
-        setChangedAndSyncShopRuntime();
+    public boolean toggleOpenRequested() {
+        return shopRuntime().toggleOpenRequested();
     }
 
     public MutableComponent statusText() {
-        initializeRuntime();
-        String diagnostic = lastTickResult == null ? "not_ticked" : lastTickResult.diagnostic().translationKey();
-        return Component.translatable("test.shopcore.status",
-                shopcore$openRequested(),
-                shopcore$shopInstance().isOpen(),
-                shopcore$orderBook().activeOrderCount(),
-                shopcore$orderBook().orders().size(),
-                consumerIds.size(),
-                diagnostic
-        );
+        var status = shopRuntime().status();
+        return Component.translatable("test.shopcore.status", status.openRequested(), status.open(),
+                status.activeOrders(), status.totalOrders(), status.consumers(), status.diagnostic());
     }
 
     public MutableComponent activeOrdersText() {
-        initializeRuntime();
-        if (shopcore$orderBook().activeOrders().isEmpty()) {
-            return Component.translatable("test.shopcore.orders.none");
-        }
-        String orders = shopcore$orderBook().activeOrders().stream()
-                .map(this::describeOrder)
-                .collect(Collectors.joining(" | "));
-        return Component.translatable("test.shopcore.orders.list", orders);
+        var orders = shopRuntime().activeOrders().stream().map(order ->
+                "#" + order.orderId().toString().substring(0, 8) + " " + order.status().name().toLowerCase(java.util.Locale.ROOT)
+                + " [" + order.lines().stream().map(line -> line.requestedCount() + "x "
+                        + line.requestedItem().getHoverName().getString() + " (" + line.deliveredCount()
+                        + "/" + line.requestedCount() + ")").collect(java.util.stream.Collectors.joining(", ")) + "]").toList();
+        return orders.isEmpty() ? Component.translatable("test.shopcore.orders.none")
+                : Component.translatable("test.shopcore.orders.list", String.join(" | ", orders));
     }
 
     public MutableComponent recordNextOrderText(ServerPlayer player) {
-        initializeRuntime();
+        shopRuntime().status();
         return Component.translatable("test.shopcore.record_order.hint");
     }
 
-    private void initializeRuntime() {
-        initializeShopRuntime();
-        if (shopcore$menuSnapshot().isEmpty()) {
-            shopcore$setMenuSnapshot(shopcore$menuSnapshot().withEntries(List.of(
-                    ListingMenuEntry.of(testListing(0, "minecraft:apple", 4)),
-                    ListingMenuEntry.of(testListing(1, "minecraft:wheat", 2)),
-                    ListingMenuEntry.of(testListing(2, "minecraft:sweet_berries", 3)),
-                    ListingMenuEntry.of(testListing(3, "minecraft:potato", 2))
-            )));
-        }
-    }
-
-    private static ShopListing testListing(int slotIndex, String itemId, int unitPrice) {
-        return ShopListing.manual(
-                slotIndex,
-                itemId,
-                DemandCategoryKey.BASIC_GOODS,
-                OrderComplexity.SINGLE_ITEM,
-                unitPrice,
-                4,
-                ShopListing.UNKNOWN_STOCK
-        );
-    }
-
-    private void tickTestConsumers(ServerLevel level, BlockState state) {
-        resetTransientConsumersAfterLoad(level);
-        List<TouhouMaidConsumerActor> actors = resolveConsumers(level);
-        spawnConsumersForNewOrders(level, state, actors);
-        actors = resolveConsumers(level);
-        markConsumersWithoutActiveOrdersLeaving(actors);
-
-        queueBehavior.tick(new HorizontalQueueContext(
-                horizontalQueueLayout(state),
-                new ArrayList<ConsumerActor>(actors),
-                consumerNavigator,
-                consumerMemory,
-                shopcore$shopInstance() != null && shopcore$shopInstance().isOpen(),
-                level.getGameTime()
-        ));
-        overheadPromptController.tickWaitingConsumers(actors, consumerMemory, shopcore$orderBook(), level.getGameTime());
-        clearOverheadForLeavingConsumers(actors);
-        pruneConsumers(level);
-    }
-
-    private void spawnConsumersForNewOrders(ServerLevel level, BlockState state, List<TouhouMaidConsumerActor> actors) {
-        if (shopcore$shopInstance() == null || !shopcore$shopInstance().isOpen() || shopcore$orderBook() == null) {
-            return;
-        }
-        Set<UUID> representedOrders = actors.stream()
-                .map(consumerMemory::orderId)
-                .flatMap(Optional::stream)
-                .collect(Collectors.toSet());
-        HorizontalQueueLayout layout = horizontalQueueLayout(state);
-        if (!spawnEntranceClear(layout, actors)) {
-            return;
-        }
-        Vec3 spawnPosition = layout.spawnPosition();
-        for (ShopOrder order : shopcore$orderBook().activeOrders()) {
-            if (representedOrders.contains(order.orderId())) {
-                continue;
-            }
-            Optional<TouhouMaidConsumerActor> spawned = TouhouMaidConsumers.spawn(level, spawnPosition);
-            if (spawned.isEmpty()) {
-                continue;
-            }
-            TouhouMaidConsumerActor actor = spawned.get();
-            consumerMemory.setOrderId(actor, order.orderId());
-            consumerMemory.setShopPos(actor, worldPosition);
-            consumerMemory.setJoinedGameTime(actor, order.createdGameTime());
-            consumerIds.add(actor.consumerId());
-            representedOrders.add(order.orderId());
-            spawnArrivalParticles(level, actor.entity());
-            return;
-        }
-    }
-
-    private boolean spawnEntranceClear(HorizontalQueueLayout layout, List<TouhouMaidConsumerActor> actors) {
-        return actors.stream()
-                .map(layout::toLocal)
-                .noneMatch(local -> local.x >= 7.0D);
-    }
-
     public MutableComponent deliverCustomerOrder(ServerPlayer player, Entity customer, ItemStack input) {
-        initializeRuntime();
-        if (input.isEmpty()) {
-            return Component.translatable("test.shopcore.delivery.input_empty");
-        }
-        EntityConsumerActor actor = new EntityConsumerActor(customer);
-        Optional<UUID> orderId = consumerMemory.orderId(actor);
-        if (orderId.isEmpty()) {
-            return Component.translatable("test.shopcore.delivery.no_order");
-        }
-        if (consumerMemory.phase(actor) == QueueConsumerPhase.WAITING_FOR_ORDER) {
-            return Component.translatable("test.shopcore.delivery.not_recorded");
-        }
-
-        OrderDeliveryInteractionResult result = OrderInteractionService.deliverToRecordedCustomer(
-                player,
-                actor,
-                input,
-                consumerMemory,
-                this,
-                (ignoredPlayer, prompt) -> CustomerOverheadOrderPromptService.show(customer, prompt),
-                ignoredPlayer -> CustomerOverheadOrderPromptService.clear(customer)
-        );
-        if (result.status() == OrderInteractionStatus.DELIVERED
-                || result.status() == OrderInteractionStatus.COMPLETED) {
-            boolean spoiled = FarmersTalesFoodExpiryCompat.getFreshness(input, player.serverLevel().getGameTime())
-                    == FarmersTalesFoodExpiryCompat.Freshness.ROTTEN;
-            TestShopDailySavedData.recordDelivery(player.serverLevel(), input, result.deliveryResult().consumedCount(), spoiled);
-            playDeliverySound(player);
-        }
-        if (result.status() == OrderInteractionStatus.COMPLETED
-                && customer.level() instanceof ServerLevel serverLevel) {
-            spawnDepartureParticlesOnce(serverLevel, customer);
-        }
-        setChangedAndSyncShopRuntime();
-        return switch (result.status()) {
-            case COMPLETED -> Component.translatable("test.shopcore.delivery.completed",
-                    describeOrder(result.order()),
-                    result.settlementResult().orElseThrow().checkoutResult().totalValue());
-            case DELIVERED -> Component.translatable("test.shopcore.delivery.delivered",
-                    result.deliveryResult().consumedCount(),
-                    describeOrder(result.order()));
-            case INPUT_EMPTY -> Component.translatable("test.shopcore.delivery.input_empty");
-            case ORDER_NOT_RECORDED -> Component.translatable("test.shopcore.delivery.not_recorded");
-            case ORDER_NOT_ACTIVE -> Component.translatable("test.shopcore.delivery.not_active");
-            case DELIVERY_NO_MATCH -> Component.translatable("test.shopcore.delivery.no_match");
-            case DELIVERY_NOT_ALLOWED -> Component.translatable("test.shopcore.delivery.not_allowed");
-            case DELIVERY_UNCHANGED -> Component.translatable("test.shopcore.delivery.unchanged");
-            case NO_ORDER, RECORDED -> Component.translatable("test.shopcore.delivery.no_order");
-        };
+        return shopRuntime().deliver(player, customer, input).message();
     }
 
-    private void clearOverheadForLeavingConsumers(List<TouhouMaidConsumerActor> actors) {
-        for (TouhouMaidConsumerActor actor : actors) {
-            QueueConsumerPhase phase = consumerMemory.phase(actor);
-            if (phase == QueueConsumerPhase.LEAVING || phase == QueueConsumerPhase.DONE) {
-                if (actor.entity().level() instanceof ServerLevel level) {
-                    spawnDepartureParticlesOnce(level, actor.entity());
-                }
-                overheadPromptController.clear(actor.entity());
-            }
-        }
+    @Override
+    public void arrived(Entity consumer) {
+        if (consumer.level() instanceof ServerLevel level) spawnArrivalParticles(level, consumer);
     }
 
-    private void markConsumersWithoutActiveOrdersLeaving(List<TouhouMaidConsumerActor> actors) {
-        if (shopcore$orderBook() == null) {
-            return;
-        }
-        Set<UUID> activeOrders = shopcore$orderBook().activeOrders().stream()
-                .map(ShopOrder::orderId)
-                .collect(Collectors.toSet());
-        for (TouhouMaidConsumerActor actor : actors) {
-            Optional<UUID> orderId = consumerMemory.orderId(actor);
-            if (orderId.isPresent() && !activeOrders.contains(orderId.get())) {
-                if (actor.entity().level() instanceof ServerLevel level) {
-                    spawnDepartureParticlesOnce(level, actor.entity());
-                }
-                overheadPromptController.clear(actor.entity());
-                consumerMemory.setPhase(actor, QueueConsumerPhase.LEAVING);
-            }
-        }
+    @Override
+    public void departing(Entity consumer) {
+        if (consumer.level() instanceof ServerLevel level) spawnDepartureParticlesOnce(level, consumer);
+    }
+
+    @Override
+    public void delivered(ServerPlayer player, DeliveryReceipt receipt) {
+        ItemStack delivered = receipt.inputBefore();
+        boolean spoiled = FarmersTalesFoodExpiryCompat.getFreshness(delivered, player.serverLevel().getGameTime())
+                == FarmersTalesFoodExpiryCompat.Freshness.ROTTEN;
+        TestShopDailySavedData.recordDelivery(player.serverLevel(), delivered, receipt.deliveredCount(), spoiled);
+        playDeliverySound(player);
     }
 
     private static void spawnArrivalParticles(ServerLevel level, Entity entity) {
@@ -374,115 +143,7 @@ public class TestShopBlockEntity extends AbstractShopBlockEntity {
         );
     }
 
-    private void resetTransientConsumersAfterLoad(ServerLevel level) {
-        if (!resetTransientConsumersAfterLoad) {
-            return;
-        }
-        resetTransientConsumersAfterLoad = false;
-        discardTransientConsumers(level);
-        consumerIds.clear();
-        setChangedAndSyncShopRuntime();
-    }
-
-    private void closeTestShopRuntime(ServerLevel level) {
-        cancelActiveOrders();
-        clearNearbyPlayerHud(level);
-        discardTransientConsumers(level);
-        consumerIds.clear();
-    }
-
-    private void discardTransientConsumers(ServerLevel level) {
-        TransientConsumerCleanupService.discardForShop(
-                level,
-                worldPosition,
-                consumerIds,
-                consumerMemory,
-                entity -> entity instanceof EntityMaid,
-                32.0D
-        );
-    }
-
-    private void clearNearbyPlayerHud(ServerLevel level) {
-        Vec3 center = Vec3.atCenterOf(worldPosition);
-        for (ServerPlayer player : level.players()) {
-            if (player.position().distanceToSqr(center) <= 32.0D * 32.0D) {
-                PlayerScreenOrderPromptService.clear(player);
-            }
-        }
-    }
-
-    private List<TouhouMaidConsumerActor> resolveConsumers(ServerLevel level) {
-        List<TouhouMaidConsumerActor> actors = new ArrayList<>();
-        for (UUID consumerId : consumerIds) {
-            Entity entity = level.getEntity(consumerId);
-            if (entity instanceof EntityMaid maid && maid.isAlive() && !maid.isRemoved()) {
-                actors.add(TouhouMaidConsumers.wrap(maid));
-            }
-        }
-        return actors;
-    }
-
-    private void pruneConsumers(ServerLevel level) {
-        consumerIds.removeIf(consumerId -> {
-            Entity entity = level.getEntity(consumerId);
-            return !(entity instanceof EntityMaid maid) || !maid.isAlive() || maid.isRemoved();
-        });
-    }
-
-    private HorizontalQueueLayout horizontalQueueLayout(BlockState state) {
-        Direction facing = state.hasProperty(TestShopBlock.FACING) ? state.getValue(TestShopBlock.FACING) : Direction.NORTH;
-        ConsumerLayoutTransform transform = new ConsumerLayoutTransform(worldPosition, facing);
-        return new HorizontalQueueLayout(
-                transform,
-                List.of(
-                        new ConsumerLayoutSlot(ConsumerLayoutRole.SERVICE, 0, BlockPos.ZERO)
-                ),
-                List.of(
-                        new ConsumerLayoutSlot(ConsumerLayoutRole.QUEUE, 0, BlockPos.ZERO),
-                        new ConsumerLayoutSlot(ConsumerLayoutRole.QUEUE, 1, BlockPos.ZERO),
-                        new ConsumerLayoutSlot(ConsumerLayoutRole.QUEUE, 2, BlockPos.ZERO)
-                ),
-                new ConsumerLayoutSlot(ConsumerLayoutRole.EXIT, 0, BlockPos.ZERO),
-                facing,
-                1.0D,
-                0.85D
-        );
-    }
-
-    private String describeOrder(ShopOrder order) {
-        String shortId = order.orderId().toString().substring(0, 8);
-        String lines = order.lines().stream()
-                .map(this::describeLine)
-                .collect(Collectors.joining(", "));
-        return "#" + shortId + " " + order.status().name().toLowerCase() + " [" + lines + "]";
-    }
-
-    private String describeLine(OrderLine line) {
-        return line.requestedCount() + "x " + line.requestedItem().getHoverName().getString()
-                + " (" + line.deliveredCount() + "/" + line.requestedCount() + ")";
-    }
-
-    @Override
-    public void load(CompoundTag tag) {
-        super.load(tag);
-        loadShopRuntime(tag);
-        consumerIds.clear();
-        ListTag consumers = tag.getList(CONSUMERS_TAG, CompoundTag.TAG_INT_ARRAY);
-        for (int i = 0; i < consumers.size(); i++) {
-            consumerIds.add(NbtUtils.loadUUID(consumers.get(i)));
-        }
-        resetTransientConsumersAfterLoad = true;
-        forceRuntimeTick = true;
-    }
-
-    @Override
-    protected void saveAdditional(CompoundTag tag) {
-        super.saveAdditional(tag);
-        saveShopRuntime(tag);
-        ListTag consumers = new ListTag();
-        for (UUID consumerId : consumerIds) {
-            consumers.add(NbtUtils.createUUID(consumerId));
-        }
-        tag.put(CONSUMERS_TAG, consumers);
+    public void forceConsumersToLeaveAfterRemoval(ServerLevel level) {
+        shopRuntime().removed(level);
     }
 }

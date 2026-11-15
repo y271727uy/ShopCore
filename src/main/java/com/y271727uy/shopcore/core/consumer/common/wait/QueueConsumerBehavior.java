@@ -14,6 +14,8 @@ import java.util.Objects;
  * The first consumer moves to the service point; later consumers occupy queue slots behind it.
  */
 public class QueueConsumerBehavior {
+    private static final double DEPARTURE_DISTANCE = 5.0D;
+
     public QueueConsumerTickResult tick(QueueConsumerContext context) {
         Objects.requireNonNull(context, "context");
         ConsumerMemory memory = context.memory();
@@ -98,14 +100,19 @@ public class QueueConsumerBehavior {
     }
 
     private void tickLeavingConsumer(QueueConsumerContext context, ConsumerActor actor) {
-        Vec3 exitTarget = context.layout().transform().toWorldGroundCenter(context.layout().exitSlot().localOffset());
-        if (context.navigator().isCloseTo(actor, exitTarget, context.layout().arrivalDistance())) {
-            context.memory().setPhase(actor, QueueConsumerPhase.DONE);
-            context.navigator().discard(actor);
+        ConsumerMemory memory = context.memory();
+        Vec3 target = memory.departureTarget(actor)
+                .orElseGet(() -> {
+                    Vec3 created = context.navigator().prepareDeparture(actor, DEPARTURE_DISTANCE);
+                    memory.setDepartureTarget(actor, created);
+                    return created;
+                });
+        if (context.navigator().isCloseTo(actor, target, context.layout().arrivalDistance())) {
+            memory.setPhase(actor, QueueConsumerPhase.DONE);
+            context.navigator().stop(actor);
             return;
         }
-
-        context.navigator().moveTowards(actor, exitTarget, context.layout().moveSpeed());
+        context.navigator().moveTowards(actor, target, context.layout().moveSpeed());
     }
 
     private void waitAtService(QueueConsumerContext context, ConsumerActor actor) {
