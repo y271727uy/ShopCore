@@ -7,7 +7,9 @@
 - `BlockBindingRegistry`：包级私有注册入口，保存方块类型到实体类型、能力工厂的映射。
 - `BoundCapabilityProvider`：包级私有；每个 BlockEntity 独立持有一个能力实例和 LazyOptional。
 - `BlockBindingHooks`：仅供模组初始化和跨包 Mixin 调用的 public 桥接类，不是公共 API。内部 carrier、创建分派对象和注册记录均为私有嵌套类。
+- `BoundBlockFlags`：混入 `Block` 的内部 duck 接口，注册时同步写入"是否有宿主 / 是否有能力绑定"标记。`hasBlockEntity`、`getTicker`、`AttachCapabilitiesEvent` 等对所有方块生效的热路径只读这个字段，不查 Map。
 - Mixin：接入原生方块实体声明、创建、合法性检查、ticker、移除及世界生成路径。
+- 能力分发：沿用 Forge 标准的 `AttachCapabilitiesEvent`。装了 ModernFix 时由其 `perf.faster_capabilities` 生成分发类，ShopCore 不自行生成字节码；所有绑定共用 `BoundCapabilityProvider` 一个类，避免 ModernFix 按类型组合缓存的生成类数量膨胀。
 
 Java 顶层类不能声明为 `private`，因此内部实现采用包级访问权限。后续商店绑定适配代码放进同一包，由上层传递商店定义，不应把业务规则写入这些 Mixin。
 

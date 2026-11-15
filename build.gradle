@@ -24,7 +24,9 @@ group = mod_group_id
 
 repositories {
     flatDir {
-        dirs 'lib'
+        // lib:  local Forge mods (remapped for dev runs, see localModFiles below)
+        // libs: plain Java libraries (not mods), consumed as-is and shipped via Jar-in-Jar
+        dirs 'lib', 'libs'
     }
     mavenLocal()
     maven { // JEI
@@ -241,6 +243,7 @@ dependencies {
     modImplementation("curse.maven:ftb-teams-forge-404468:7499810")
 
     modImplementation("maven.modrinth:kotlin-for-forge:Zsh14XeQ")
+    modImplementation("modernfix:modernfix-forge-5.27.93-mc1.20.1")
 
     //modRuntimeOnly("maven.modrinth:probejs:7.0.0")
     //modRuntimeOnly("maven.modrinth:manors-bounty:D0TALYL6")
@@ -261,6 +264,15 @@ mixin {
 
 dependencies {
     annotationProcessor 'org.spongepowered:mixin:0.8.5:processor'
+    // Forge 47.x does not bundle MixinExtras; ship it via Jar-in-Jar (self-initialises, highest version wins).
+    compileOnly(annotationProcessor("io.github.llamalad7:mixinextras-common:0.4.1"))
+    implementation(jarJar("io.github.llamalad7:mixinextras-forge:0.4.1"))
+
+    // computatio: plain Java library (not a mod) from libs/computatio-0.1.0.jar.
+    // flatDir ignores the group; it resolves libs/<name>-<version>.jar. Bundled into the
+    // built jar under META-INF/jarjar/ and loaded by Forge as a game library at runtime.
+    // Its only external dependency is fastutil, which Minecraft already provides.
+    implementation(jarJar("com.y271727uy:computatio:0.1.0"))
 }
 
 jar {

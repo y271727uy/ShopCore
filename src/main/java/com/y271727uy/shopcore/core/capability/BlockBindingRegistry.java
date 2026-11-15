@@ -44,6 +44,7 @@ final class BlockBindingRegistry {
         var copy = new LinkedHashMap<>(entities);
         copy.put(block, new EntityBinding<>(Objects.requireNonNull(type, "type"), serverTicker, clientTicker));
         entities = Map.copyOf(copy);
+        updateFlags(block);
     }
 
     /**
@@ -70,7 +71,22 @@ final class BlockBindingRegistry {
         var copy = new LinkedHashMap<>(capabilities);
         copy.put(block, List.copyOf(bindings));
         capabilities = Map.copyOf(copy);
+        updateFlags(block);
     }
+
+    /**
+     * Mirrors the maps into the per-block field read by hot paths. Registration happens before any
+     * world thread starts, so those threads observe the final values without extra synchronization.
+     */
+    private static void updateFlags(Block block) {
+        byte flags = 0;
+        boolean hasCaps = capabilities.containsKey(block);
+        if (entities.containsKey(block) || (hasCaps && !(block instanceof EntityBlock))) flags |= BoundBlockFlags.HOST;
+        if (hasCaps) flags |= BoundBlockFlags.CAPABILITIES;
+        ((BoundBlockFlags) block).shopcore$setBindingFlags(flags);
+    }
+
+    private static byte flags(Block block) { return ((BoundBlockFlags) block).shopcore$bindingFlags(); }
 
     private static void checkMutable(Block block) {
         if (frozen) throw new IllegalStateException("Block bindings are frozen; runtime rebinding is not supported");
@@ -87,9 +103,9 @@ final class BlockBindingRegistry {
         frozen = true;
     }
 
+    /** Hot path (every BlockState.hasBlockEntity/getTicker): a single field read. */
     static boolean hasEntity(BlockState state) {
-        Block block = state.getBlock();
-        return entities.containsKey(block) || (!(block instanceof EntityBlock) && capabilities.containsKey(block));
+        return (flags(state.getBlock()) & BoundBlockFlags.HOST) != 0;
     }
 
     static boolean accepts(BlockState state, BlockEntityType<?> type) {
@@ -118,7 +134,10 @@ final class BlockBindingRegistry {
 
     static void attach(AttachCapabilitiesEvent<BlockEntity> event) {
         BlockEntity owner = event.getObject();
-        for (var binding : capabilities.getOrDefault(owner.getBlockState().getBlock(), List.of())) {
+        Block block = owner.getBlockState().getBlock();
+        // Runs for every BlockEntity in the game; skip the map lookup for unbound blocks.
+        if ((flags(block) & BoundBlockFlags.CAPABILITIES) == 0) return;
+        for (var binding : capabilities.getOrDefault(block, List.of())) {
             binding.attach(event, owner);
         }
     }

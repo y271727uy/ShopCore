@@ -1,5 +1,6 @@
 package com.y271727uy.shopcore.mixin;
 
+import com.llamalad7.mixinextras.injector.ModifyReturnValue;
 import com.y271727uy.shopcore.core.capability.BlockBindingHooks;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.level.Level;
@@ -12,20 +13,22 @@ import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
-import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 @Mixin(BlockBehaviour.BlockStateBase.class)
 abstract class BoundBlockStateMixin {
-    @Inject(method = "hasBlockEntity", at = @At("HEAD"), cancellable = true)
-    private void shopcore$hasBoundEntity(CallbackInfoReturnable<Boolean> cir) {
-        if (BlockBindingHooks.hasBinding((BlockState) (Object) this)) cir.setReturnValue(true);
+    // Hot paths for every BlockState: ModifyReturnValue allocates no CallbackInfo and keeps other mods'
+    // injections in the original body running. Bound hosts are never EntityBlock (enforced at registration),
+    // so the vanilla result for them is always false / null and is safe to replace.
+    @ModifyReturnValue(method = "hasBlockEntity", at = @At("RETURN"))
+    private boolean shopcore$hasBoundEntity(boolean original) {
+        return original || BlockBindingHooks.hasBinding((BlockState) (Object) this);
     }
 
-    @Inject(method = "getTicker", at = @At("HEAD"), cancellable = true)
-    private <T extends BlockEntity> void shopcore$boundTicker(Level level, BlockEntityType<T> type,
-                                                           CallbackInfoReturnable<BlockEntityTicker<T>> cir) {
+    @ModifyReturnValue(method = "getTicker", at = @At("RETURN"))
+    private <T extends BlockEntity> BlockEntityTicker<T> shopcore$boundTicker(
+            BlockEntityTicker<T> original, Level level, BlockEntityType<T> type) {
         BlockState state = (BlockState) (Object) this;
-        if (BlockBindingHooks.hasBinding(state)) cir.setReturnValue(BlockBindingHooks.ticker(state, level, type));
+        return BlockBindingHooks.hasBinding(state) ? BlockBindingHooks.ticker(state, level, type) : original;
     }
 
     @Inject(method = "onRemove", at = @At("HEAD"))
